@@ -1,4 +1,4 @@
-name: Release Windows Installer
+name: Release HiMate Credit
 
 on:
   workflow_dispatch:
@@ -45,7 +45,7 @@ jobs:
         shell: pwsh
         run: |
           $version = $env:HIMATE_VERSION.TrimStart('v')
-          Copy-Item ".\artifacts\installer\HiMate-Agent-Setup.exe" ".\HiMate-Agent-Setup-$version.exe"
+          Copy-Item ".\artifacts\installer\HiMate-Credit-Setup.exe" ".\HiMate-Credit-Setup-$version.exe"
 
       - name: Create GitHub Release
         shell: pwsh
@@ -55,7 +55,7 @@ jobs:
           $tag = $env:HIMATE_VERSION
           $version = $tag.TrimStart('v')
           gh release create "$tag" `
-            ".\HiMate-Agent-Setup-$version.exe" `
+            ".\HiMate-Credit-Setup-$version.exe" `
             --target "${{ github.sha }}" `
-            --title "HiMate Agent $tag" `
+            --title "HiMate Credit $tag" `
             --generate-notes
