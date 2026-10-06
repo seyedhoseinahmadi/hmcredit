@@ -7,4 +7,5 @@ public sealed class AgentSettings
     public string ComPort { get; set; } = "";
     public int BaudRate { get; set; } = 115200;
     public int SyncIntervalSeconds { get; set; } = 30;
+    public bool AutoConnect { get; set; } = true;
 }
