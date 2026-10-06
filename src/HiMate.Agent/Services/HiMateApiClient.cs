@@ -23,7 +23,7 @@ public sealed class HiMateApiClient
     public HiMateApiClient()
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HiMate-Agent/0.1.0");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HiMate-Credit/0.2.0");
     }
 
     public async Task<PingResponse> PingAsync(CancellationToken ct = default)
