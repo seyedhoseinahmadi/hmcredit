@@ -26,9 +26,20 @@ jobs:
         shell: pwsh
         run: .\scripts\publish-win-x64.ps1
 
-      - name: Upload artifact
+      - name: Build Windows installer
+        shell: pwsh
+        run: .\scripts\build-installer.ps1
+
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HiMate-Agent-win-x64
+          name: HiMate-Agent-Setup
+          path: artifacts/installer/HiMate-Agent-Setup.exe
+          if-no-files-found: error
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HiMate-Agent-Portable-win-x64
           path: artifacts/win-x64/**
           if-no-files-found: error
