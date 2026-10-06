@@ -1,230 +1,426 @@
 <Window x:Class="HiMate.Agent.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="HiMate Credit" Height="780" Width="1220" MinHeight="680" MinWidth="1040"
-        WindowStartupLocation="CenterScreen" FlowDirection="RightToLeft">
-  <Grid Margin="18">
-    <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="220" />
-      <ColumnDefinition Width="18" />
-      <ColumnDefinition Width="*" />
-    </Grid.ColumnDefinitions>
+        Title="HiMate Credit" Height="790" Width="1180" MinHeight="700" MinWidth="1040"
+        WindowStartupLocation="CenterScreen" FlowDirection="RightToLeft"
+        Background="{StaticResource Bg}">
+  <Grid Background="{StaticResource Bg}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="108" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="28" />
+    </Grid.RowDefinitions>
 
-    <Border Grid.Column="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16">
-      <Grid>
+    <Border Grid.Row="0" Background="{StaticResource Header}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
+      <Grid Margin="28,0">
         <Grid.RowDefinitions>
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="20" />
-          <RowDefinition Height="*" />
-          <RowDefinition Height="Auto" />
+          <RowDefinition Height="58" />
+          <RowDefinition Height="50" />
         </Grid.RowDefinitions>
-        <StackPanel>
-          <TextBlock Text="HiMate" FontSize="28" FontWeight="Bold" />
-          <TextBlock Text="Credit" Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
-        </StackPanel>
-        <StackPanel Grid.Row="2">
-          <Button Style="{StaticResource NavButton}" Content="داشبورد" Click="ShowDashboard_Click" />
-          <Button Style="{StaticResource NavButton}" Content="تراکنش‌ها" Click="ShowTransactions_Click" />
-          <Button Style="{StaticResource NavButton}" Content="دستورات سرور" Click="ShowCommands_Click" />
-          <Button Style="{StaticResource NavButton}" Content="تنظیمات" Click="ShowSettings_Click" />
-          <Button Style="{StaticResource NavButton}" Content="لاگ" Click="ShowLogs_Click" />
-        </StackPanel>
-        <StackPanel Grid.Row="3">
-          <TextBlock x:Name="SideDevice" Text="Device: -" Foreground="{StaticResource Muted}" Margin="0,0,0,5" />
-          <TextBlock x:Name="SideVersion" Text="Credit 0.1.0" Foreground="{StaticResource Muted}" />
-        </StackPanel>
-      </Grid>
-    </Border>
 
-    <Grid Grid.Column="2">
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto" />
-        <RowDefinition Height="14" />
-        <RowDefinition Height="*" />
-      </Grid.RowDefinitions>
-
-      <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14">
-        <Grid>
+        <Grid Grid.Row="0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
-          <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight">
-            <Border Background="{StaticResource Panel2}" Padding="10,6" Margin="0,0,8,0">
-              <TextBlock x:Name="SerialBadge" Text="SERIAL OFFLINE" Foreground="{StaticResource Bad}" FontWeight="SemiBold" />
-            </Border>
-            <Border Background="{StaticResource Panel2}" Padding="10,6">
-              <TextBlock x:Name="ServerBadge" Text="SERVER UNKNOWN" Foreground="{StaticResource Warn}" FontWeight="SemiBold" />
-            </Border>
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="HiMate" FontFamily="Segoe UI" FontSize="34" FontWeight="Bold" Margin="0,0,8,0" />
+            <TextBlock Text="Credit" FontFamily="Segoe UI" FontSize="16" Foreground="{StaticResource Accent}" VerticalAlignment="Bottom" Margin="0,0,0,8" />
           </StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal">
-            <Button x:Name="ConnectButton" Style="{StaticResource SecondaryButton}" Content="اتصال دستگاه" Click="ConnectButton_Click" />
-            <Button Style="{StaticResource PrimaryButton}" Content="Sync Now" Click="SyncNow_Click" />
+
+          <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" FlowDirection="LeftToRight" VerticalAlignment="Center">
+            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="10,6" Margin="6,0">
+              <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="DeviceDot" Width="8" Height="8" Fill="{StaticResource Bad}" Margin="0,0,7,0" />
+                <TextBlock x:Name="HeaderDeviceState" Text="دستگاه قطع" FontSize="12" />
+              </StackPanel>
+            </Border>
+            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="10,6">
+              <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="ServerDot" Width="8" Height="8" Fill="{StaticResource Warn}" Margin="0,0,7,0" />
+                <TextBlock x:Name="HeaderServerState" Text="سرور نامشخص" FontSize="12" />
+              </StackPanel>
+            </Border>
           </StackPanel>
         </Grid>
-      </Border>
 
-      <TabControl x:Name="MainTabs" Grid.Row="2" Background="Transparent" BorderThickness="0">
-        <TabControl.Resources>
-          <Style TargetType="TabItem">
-            <Setter Property="Visibility" Value="Collapsed" />
-          </Style>
-        </TabControl.Resources>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+          <Button x:Name="NavHome" Style="{StaticResource NavButton}" Content="خانه" Click="ShowHome_Click" />
+          <Button x:Name="NavCard" Style="{StaticResource NavButton}" Content="کارت" Click="ShowCard_Click" />
+          <Button x:Name="NavTransactions" Style="{StaticResource NavButton}" Content="تراکنش‌ها" Click="ShowTransactions_Click" />
+          <Button x:Name="NavTopup" Style="{StaticResource NavButton}" Content="شارژ اعتبار" Click="ShowTopup_Click" />
+          <Button x:Name="NavSync" Style="{StaticResource NavButton}" Content="همگام‌سازی" Click="ShowSync_Click" />
+          <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Content="تنظیمات" Click="ShowSettings_Click" />
+          <Button x:Name="NavSupport" Style="{StaticResource NavButton}" Content="پشتیبانی" Click="ShowSupport_Click" />
+        </StackPanel>
+      </Grid>
+    </Border>
 
-        <TabItem Header="Dashboard">
-          <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-              <TextBlock Text="داشبورد" FontSize="28" FontWeight="Bold" Margin="0,0,0,18" />
-              <UniformGrid Columns="3" Margin="0,0,0,18">
-                <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="18" Margin="0,0,10,0">
-                  <StackPanel>
-                    <TextBlock Text="رویدادهای منتظر Sync" Foreground="{StaticResource Muted}" />
-                    <TextBlock x:Name="PendingCountText" Text="0" FontSize="34" FontWeight="Bold" Margin="0,8,0,0" />
-                  </StackPanel>
-                </Border>
-                <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="18" Margin="0,0,10,0">
-                  <StackPanel>
-                    <TextBlock Text="پورت دستگاه" Foreground="{StaticResource Muted}" />
-                    <TextBlock x:Name="PortText" Text="-" FontSize="24" FontWeight="SemiBold" Margin="0,10,0,0" />
-                  </StackPanel>
-                </Border>
-                <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="18">
-                  <StackPanel>
-                    <TextBlock Text="HiMate Core" Foreground="{StaticResource Muted}" />
-                    <TextBlock x:Name="CoreVersionText" Text="-" FontSize="24" FontWeight="SemiBold" Margin="0,10,0,0" />
-                  </StackPanel>
-                </Border>
-              </UniformGrid>
+    <TabControl x:Name="MainTabs" Grid.Row="1" Background="{StaticResource Bg}" BorderThickness="0" Padding="0">
+      <TabControl.Resources>
+        <Style TargetType="TabItem">
+          <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
+      </TabControl.Resources>
 
-              <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="18" Margin="0,0,0,18">
+      <TabItem Header="Home">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}">
+          <StackPanel Margin="28,24,28,30">
+            <TextBlock Style="{StaticResource PageTitle}" Text="وضعیت کلی" />
+            <TextBlock Style="{StaticResource MutedText}" Text="ارتباط دستگاه، صف همگام‌سازی و سرور در یک نگاه" Margin="0,0,0,18" />
+
+            <UniformGrid Columns="3" Margin="0,0,0,16">
+              <Border Style="{StaticResource Card}" Margin="0,0,8,0">
                 <StackPanel>
-                  <TextBlock Text="کنترل دستگاه" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
-                  <WrapPanel>
-                    <Button Style="{StaticResource SecondaryButton}" Content="EVENTS" Click="RequestEvents_Click" />
-                    <Button Style="{StaticResource SecondaryButton}" Content="GETDEBIT" Click="GetDebit_Click" />
-                    <Button Style="{StaticResource SecondaryButton}" Content="STATUS" Click="Status_Click" />
-                    <Button Style="{StaticResource SecondaryButton}" Content="BALANCE" Click="Balance_Click" />
-                  </WrapPanel>
+                  <TextBlock Style="{StaticResource MutedText}" Text="وضعیت دستگاه" />
+                  <TextBlock x:Name="HomeDeviceState" Text="در انتظار اتصال" FontFamily="IRANYekanX Bold, IRANYekanX, Segoe UI" FontSize="26" FontWeight="Bold" Foreground="{StaticResource Warn}" Margin="0,12,0,0" />
+                  <TextBlock x:Name="HomeDeviceSub" Text="-" Foreground="{StaticResource Muted}" Margin="0,8,0,0" />
                 </StackPanel>
               </Border>
 
-              <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="18">
+              <Border Style="{StaticResource Card}" Margin="0,0,8,0">
                 <StackPanel>
-                  <TextBlock Text="وضعیت فاز فعلی" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
-                  <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Muted}"
-                             Text="Sync رویدادهای ISSUE / ADD / DEBIT با HiMate Core 2.2 فعال است. دریافت Command از سرور پیاده‌سازی شده، اما اعمال خودکار CREDIT سروری تا زمانی که Firmware از CID+UID در خود دستور پشتیبانی نکند عمداً غیرفعال است." />
+                  <TextBlock Style="{StaticResource MutedText}" Text="در انتظار ارسال" />
+                  <TextBlock x:Name="PendingCountText" Text="0" FontSize="34" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,10,0,0" />
+                  <TextBlock Text="رویداد" Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
                 </StackPanel>
               </Border>
-            </StackPanel>
-          </ScrollViewer>
-        </TabItem>
 
-        <TabItem Header="Transactions">
-          <Grid>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="12" />
-              <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <Grid>
-              <TextBlock Text="تراکنش‌ها" FontSize="28" FontWeight="Bold" />
-              <Button HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}" Content="بروزرسانی" Click="RefreshTransactions_Click" />
-            </Grid>
-            <DataGrid x:Name="EventsGrid" Grid.Row="2">
-              <DataGrid.Columns>
-                <DataGridTextColumn Header="Local" Binding="{Binding LocalId}" Width="60" />
-                <DataGridTextColumn Header="ID" Binding="{Binding DeviceEventId}" Width="70" />
-                <DataGridTextColumn Header="UID" Binding="{Binding Uid}" Width="150" />
-                <DataGridTextColumn Header="TYPE" Binding="{Binding Type}" Width="80" />
-                <DataGridTextColumn Header="AMOUNT" Binding="{Binding Amount}" Width="80" />
-                <DataGridTextColumn Header="TOTAL" Binding="{Binding Total}" Width="70" />
-                <DataGridTextColumn Header="REMAIN" Binding="{Binding Remaining}" Width="80" />
-                <DataGridTextColumn Header="TX" Binding="{Binding Tx}" Width="60" />
-                <DataGridTextColumn Header="GEN" Binding="{Binding Gen}" Width="80" />
-                <DataGridTextColumn Header="SEQ" Binding="{Binding Seq}" Width="60" />
-                <DataGridTextColumn Header="CID" Binding="{Binding Cid}" Width="70" />
-                <DataGridTextColumn Header="SYNC" Binding="{Binding SyncStatus}" Width="95" />
-              </DataGrid.Columns>
-            </DataGrid>
-          </Grid>
-        </TabItem>
+              <Border Style="{StaticResource Card}">
+                <StackPanel>
+                  <TextBlock Style="{StaticResource MutedText}" Text="نیازمند بررسی" />
+                  <TextBlock x:Name="ProblemCountText" Text="0" FontSize="34" FontWeight="Bold" Margin="0,10,0,0" />
+                  <TextBlock Text="Conflict / Invalid" Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
+                </StackPanel>
+              </Border>
+            </UniformGrid>
 
-        <TabItem Header="Commands">
-          <Grid>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="12" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="12" />
-              <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <Grid>
-              <TextBlock Text="دستورات سرور" FontSize="28" FontWeight="Bold" />
-              <Button HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}" Content="دریافت" Click="RefreshCommands_Click" />
-            </Grid>
-            <Border Grid.Row="2" Background="#2A2112" BorderBrush="#5A4320" BorderThickness="1" Padding="12">
-              <TextBlock Foreground="#FFD48A" TextWrapping="Wrap"
-                         Text="برای جلوگیری از شارژ کارت اشتباه، CREDIT سروری در این نسخه فقط نمایش داده می‌شود. اعمال آن بعد از ارتقای Firmware به CREDIT|CID=...|UID=...|AMOUNT=... فعال می‌شود." />
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="220" />
+                </Grid.ColumnDefinitions>
+                <Grid Grid.Column="0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="34" />
+                    <RowDefinition Height="34" />
+                    <RowDefinition Height="34" />
+                    <RowDefinition Height="34" />
+                    <RowDefinition Height="34" />
+                  </Grid.RowDefinitions>
+                  <TextBlock Text="کد دستگاه" Foreground="{StaticResource Muted}" />
+                  <TextBlock x:Name="HomeDeviceCode" Grid.Column="1" Text="-" FontWeight="SemiBold" />
+                  <TextBlock Grid.Row="1" Text="پورت دستگاه" Foreground="{StaticResource Muted}" />
+                  <TextBlock x:Name="HomePortText" Grid.Row="1" Grid.Column="1" Text="-" />
+                  <TextBlock Grid.Row="2" Text="وضعیت سرور" Foreground="{StaticResource Muted}" />
+                  <TextBlock x:Name="HomeServerState" Grid.Row="2" Grid.Column="1" Text="نامشخص" />
+                  <TextBlock Grid.Row="3" Text="HiMate Core" Foreground="{StaticResource Muted}" />
+                  <TextBlock x:Name="CoreVersionText" Grid.Row="3" Grid.Column="1" Text="-" />
+                  <TextBlock Grid.Row="4" Text="آخرین همگام‌سازی" Foreground="{StaticResource Muted}" />
+                  <TextBlock x:Name="HomeLastSyncText" Grid.Row="4" Grid.Column="1" Text="-" />
+                </Grid>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                  <Button Style="{StaticResource PrimaryButton}" Content="همگام‌سازی الآن" Click="SyncNow_Click" Margin="0,0,0,8" />
+                  <TextBlock Text="اتصال دستگاه و سرور پس از ذخیره تنظیمات به‌صورت خودکار انجام می‌شود."
+                             Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="11" />
+                </StackPanel>
+              </Grid>
             </Border>
-            <DataGrid x:Name="CommandsGrid" Grid.Row="4">
+
+            <Border Style="{StaticResource Card}">
+              <StackPanel>
+                <TextBlock Style="{StaticResource SectionTitle}" Text="آخرین تراکنش" />
+                <TextBlock x:Name="LastEventText" Text="هنوز رویدادی ثبت نشده است." Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Card">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}">
+          <StackPanel Margin="28,24,28,30">
+            <TextBlock Style="{StaticResource PageTitle}" Text="کارت" />
+            <TextBlock Style="{StaticResource MutedText}" Text="بررسی کارت و آخرین اطلاعات دریافت‌شده از دستگاه" Margin="0,0,0,18" />
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock x:Name="CardPromptText" Text="کارت را روی دستگاه قرار دهید." FontFamily="IRANYekanX Bold, IRANYekanX, Segoe UI" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                <TextBlock x:Name="CardDetailsText" Text="اطلاعات آخرین کارت پس از دریافت رویداد در این بخش نمایش داده می‌شود."
+                           Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,10,0,18" />
+                <WrapPanel>
+                  <Button Style="{StaticResource SecondaryButton}" Content="خواندن موجودی" Click="Balance_Click" Margin="0,0,8,0" />
+                  <Button Style="{StaticResource SecondaryButton}" Content="وضعیت دستگاه" Click="Status_Click" />
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+              <StackPanel>
+                <TextBlock Style="{StaticResource SectionTitle}" Text="آخرین پاسخ دستگاه" />
+                <TextBlock x:Name="LatestDeviceResponseText" Text="-" TextWrapping="Wrap" Foreground="{StaticResource Muted}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Transactions">
+        <Grid Background="{StaticResource Bg}" Margin="28,24,28,30">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="18" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <Grid>
+            <StackPanel>
+              <TextBlock Style="{StaticResource PageTitle}" Text="تراکنش‌ها" />
+              <TextBlock Style="{StaticResource MutedText}" Text="رویدادهای ذخیره‌شده محلی و وضعیت همگام‌سازی آنها" />
+            </StackPanel>
+            <Button HorizontalAlignment="Left" VerticalAlignment="Center" Style="{StaticResource SecondaryButton}" Content="بروزرسانی" Click="RefreshTransactions_Click" />
+          </Grid>
+
+          <DataGrid x:Name="EventsGrid" Grid.Row="2" AlternationCount="2">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="زمان" Binding="{Binding ReceivedAtUtc}" Width="150" />
+              <DataGridTextColumn Header="UID" Binding="{Binding Uid}" Width="155" />
+              <DataGridTextColumn Header="عملیات" Binding="{Binding Type}" Width="90" />
+              <DataGridTextColumn Header="مقدار" Binding="{Binding Amount}" Width="75" />
+              <DataGridTextColumn Header="مانده" Binding="{Binding Remaining}" Width="75" />
+              <DataGridTextColumn Header="TX" Binding="{Binding Tx}" Width="65" />
+              <DataGridTextColumn Header="GEN" Binding="{Binding Gen}" Width="85" />
+              <DataGridTextColumn Header="SEQ" Binding="{Binding Seq}" Width="65" />
+              <DataGridTextColumn Header="وضعیت" Binding="{Binding SyncStatus}" Width="110" />
+              <DataGridTextColumn Header="خطا" Binding="{Binding LastError}" Width="*" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Topup">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}">
+          <StackPanel Margin="28,24,28,30" MaxWidth="760" HorizontalAlignment="Right">
+            <TextBlock Style="{StaticResource PageTitle}" Text="شارژ اعتبار" />
+            <TextBlock Style="{StaticResource MutedText}" Text="شارژ دستی کارت از طریق دستگاه محلی" Margin="0,0,0,18" />
+
+            <Border Style="{StaticResource Card}">
+              <StackPanel>
+                <TextBlock Style="{StaticResource SectionTitle}" Text="مبلغ شارژ" />
+                <TextBox x:Name="TopupAmountBox" Text="1" Width="220" HorizontalAlignment="Right" FlowDirection="LeftToRight" TextAlignment="Right" />
+                <TextBlock Text="پس از شروع، کارت موردنظر را روی دستگاه قرار دهید."
+                           Foreground="{StaticResource Muted}" Margin="0,10,0,16" />
+                <Button Style="{StaticResource PrimaryButton}" Content="شروع شارژ کارت" Click="StartTopup_Click" Width="220" HorizontalAlignment="Right" />
+                <TextBlock x:Name="TopupFeedbackText" Text="" Foreground="{StaticResource Accent}" Margin="0,12,0,0" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+              <StackPanel>
+                <TextBlock Style="{StaticResource SectionTitle}" Text="شارژ از سرور" />
+                <TextBlock Text="اعمال خودکار دستور CREDIT سروری تا اضافه‌شدن تطبیق امن CID + UID در Firmware غیرفعال می‌ماند."
+                           Foreground="{StaticResource Warn}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Sync">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}">
+          <StackPanel Margin="28,24,28,30">
+            <TextBlock Style="{StaticResource PageTitle}" Text="همگام‌سازی" />
+            <TextBlock Style="{StaticResource MutedText}" Text="وضعیت صف محلی، سرور و درخواست‌های دریافتی" Margin="0,0,0,18" />
+
+            <UniformGrid Columns="3" Margin="0,0,0,16">
+              <Border Style="{StaticResource Card}" Margin="0,0,8,0">
+                <StackPanel>
+                  <TextBlock Text="وضعیت سرور" Foreground="{StaticResource Muted}" />
+                  <TextBlock x:Name="SyncServerStateText" Text="نامشخص" FontSize="22" FontWeight="Bold" Margin="0,10,0,0" />
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource Card}" Margin="0,0,8,0">
+                <StackPanel>
+                  <TextBlock Text="در انتظار ارسال" Foreground="{StaticResource Muted}" />
+                  <TextBlock x:Name="SyncPendingText" Text="0" FontSize="30" FontWeight="Bold" Foreground="{StaticResource Accent}" Margin="0,10,0,0" />
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource Card}">
+                <StackPanel>
+                  <TextBlock Text="نیازمند بررسی" Foreground="{StaticResource Muted}" />
+                  <TextBlock x:Name="SyncProblemText" Text="0" FontSize="30" FontWeight="Bold" Margin="0,10,0,0" />
+                </StackPanel>
+              </Border>
+            </UniformGrid>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,16">
+              <Button Style="{StaticResource PrimaryButton}" Content="همگام‌سازی الآن" Click="SyncNow_Click" Margin="0,0,8,0" />
+              <Button Style="{StaticResource SecondaryButton}" Content="دریافت دستورات سرور" Click="RefreshCommands_Click" />
+            </StackPanel>
+
+            <DataGrid x:Name="CommandsGrid" Height="280">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="CID" Binding="{Binding Id}" Width="80" />
-                <DataGridTextColumn Header="TYPE" Binding="{Binding Type}" Width="100" />
+                <DataGridTextColumn Header="نوع" Binding="{Binding Type}" Width="100" />
                 <DataGridTextColumn Header="UID" Binding="{Binding Uid}" Width="170" />
-                <DataGridTextColumn Header="AMOUNT" Binding="{Binding Amount}" Width="90" />
-                <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="110" />
-                <DataGridTextColumn Header="NOTE" Binding="{Binding Note}" Width="*" />
+                <DataGridTextColumn Header="مقدار" Binding="{Binding Amount}" Width="90" />
+                <DataGridTextColumn Header="وضعیت" Binding="{Binding Status}" Width="110" />
+                <DataGridTextColumn Header="یادداشت" Binding="{Binding Note}" Width="*" />
               </DataGrid.Columns>
             </DataGrid>
-          </Grid>
-        </TabItem>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
 
-        <TabItem Header="Settings">
-          <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel MaxWidth="720" HorizontalAlignment="Right">
-              <TextBlock Text="تنظیمات HiMate Credit" FontSize="28" FontWeight="Bold" Margin="0,0,0,18" />
-              <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="18">
-                <Grid>
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                  <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/><RowDefinition Height="12"/>
-                    <RowDefinition Height="Auto"/><RowDefinition Height="12"/>
-                    <RowDefinition Height="Auto"/><RowDefinition Height="12"/>
-                    <RowDefinition Height="Auto"/><RowDefinition Height="12"/>
-                    <RowDefinition Height="Auto"/><RowDefinition Height="18"/>
-                    <RowDefinition Height="Auto"/>
-                  </Grid.RowDefinitions>
-                  <TextBlock Text="Server URL" VerticalAlignment="Center" />
-                  <TextBox x:Name="ServerUrlBox" Grid.Column="1" />
-                  <TextBlock Grid.Row="2" Text="Device Code" VerticalAlignment="Center" />
-                  <TextBox x:Name="DeviceCodeBox" Grid.Row="2" Grid.Column="1" />
-                  <TextBlock Grid.Row="4" Text="Device Secret" VerticalAlignment="Center" />
-                  <PasswordBox x:Name="DeviceSecretBox" Grid.Row="4" Grid.Column="1" />
-                  <TextBlock Grid.Row="6" Text="COM Port" VerticalAlignment="Center" />
-                  <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal">
-                    <ComboBox x:Name="ComPortBox" Width="180" />
-                    <Button Style="{StaticResource SecondaryButton}" Content="Refresh" Click="RefreshPorts_Click" />
-                  </StackPanel>
-                  <TextBlock Grid.Row="8" Text="Baud" VerticalAlignment="Center" />
-                  <TextBox x:Name="BaudBox" Grid.Row="8" Grid.Column="1" Text="115200" Width="180" HorizontalAlignment="Right" />
-                  <StackPanel Grid.Row="10" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Left">
-                    <Button Style="{StaticResource PrimaryButton}" Content="ذخیره تنظیمات" Click="SaveSettings_Click" />
-                    <Button Style="{StaticResource SecondaryButton}" Content="تست سرور" Click="TestServer_Click" />
-                  </StackPanel>
-                </Grid>
+      <TabItem Header="Settings">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}">
+          <StackPanel Margin="28,24,28,30">
+            <TextBlock Style="{StaticResource PageTitle}" Text="تنظیمات" />
+            <TextBlock Style="{StaticResource MutedText}" Text="یک‌بار تنظیم کنید؛ HiMate Credit در اجراهای بعدی از همین تنظیمات استفاده می‌کند." Margin="0,0,0,18" />
+
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Border Grid.Column="0" Style="{StaticResource Card}">
+                <StackPanel>
+                  <TextBlock Style="{StaticResource SectionTitle}" Text="دستگاه" />
+                  <TextBlock Text="پورت COM" Foreground="{StaticResource Muted}" Margin="0,0,0,6" />
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="100" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="ComPortBox" Grid.Column="0" Margin="0,0,8,0" />
+                    <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="بروزرسانی" Click="RefreshPorts_Click" />
+                  </Grid>
+
+                  <TextBlock Text="Baud Rate" Foreground="{StaticResource Muted}" Margin="0,14,0,6" />
+                  <TextBox x:Name="BaudBox" Text="115200" FlowDirection="LeftToRight" TextAlignment="Left" />
+
+                  <CheckBox x:Name="AutoConnectCheck" Content="اتصال خودکار در شروع برنامه" IsChecked="True" Margin="0,16,0,0" />
+
+                  <Button Style="{StaticResource SecondaryButton}" Content="تست اتصال دستگاه" Click="TestDevice_Click" Margin="0,16,0,0" />
+                  <TextBlock x:Name="DeviceTestFeedbackText" Text="" Margin="0,10,0,0" TextWrapping="Wrap" Foreground="{StaticResource Muted}" />
+                </StackPanel>
               </Border>
-            </StackPanel>
-          </ScrollViewer>
-        </TabItem>
 
-        <TabItem Header="Logs">
-          <Grid>
-            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-            <TextBlock Text="لاگ HiMate Credit" FontSize="28" FontWeight="Bold" />
-            <ListBox x:Name="LogsList" Grid.Row="2" Background="{StaticResource Panel}" Foreground="{StaticResource Text}" BorderBrush="{StaticResource Line}" />
-          </Grid>
-        </TabItem>
-      </TabControl>
-    </Grid>
+              <Border Grid.Column="2" Style="{StaticResource Card}">
+                <StackPanel>
+                  <TextBlock Style="{StaticResource SectionTitle}" Text="سرور" />
+                  <TextBlock Text="Server URL" Foreground="{StaticResource Muted}" Margin="0,0,0,6" />
+                  <TextBox x:Name="ServerUrlBox" FlowDirection="LeftToRight" TextAlignment="Left" />
+
+                  <TextBlock Text="Device Code" Foreground="{StaticResource Muted}" Margin="0,14,0,6" />
+                  <TextBox x:Name="DeviceCodeBox" FlowDirection="LeftToRight" TextAlignment="Left" />
+
+                  <TextBlock Text="Device Secret" Foreground="{StaticResource Muted}" Margin="0,14,0,6" />
+                  <PasswordBox x:Name="DeviceSecretBox" FlowDirection="LeftToRight" />
+
+                  <Button Style="{StaticResource SecondaryButton}" Content="تست اتصال سرور" Click="TestServer_Click" Margin="0,16,0,0" />
+                  <TextBlock x:Name="ServerTestFeedbackText" Text="" Margin="0,10,0,0" TextWrapping="Wrap" Foreground="{StaticResource Muted}" />
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="220" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Style="{StaticResource SectionTitle}" Text="برداشت پیش‌فرض" />
+                  <TextBlock x:Name="CurrentDebitText" Text="مقدار فعلی دستگاه: -" Foreground="{StaticResource Muted}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                  <TextBox x:Name="DefaultDebitBox" Text="1" FlowDirection="LeftToRight" TextAlignment="Left" />
+                  <Button Style="{StaticResource SecondaryButton}" Content="ذخیره روی دستگاه" Click="SetDebit_Click" Margin="0,8,0,0" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+              <Button Style="{StaticResource PrimaryButton}" Content="ذخیره تنظیمات" Click="SaveSettings_Click" Width="180" />
+              <TextBlock x:Name="SettingsFeedbackText" Text="" Foreground="{StaticResource Accent}" Margin="14,0,0,0" />
+            </StackPanel>
+
+            <Border Style="{StaticResource Card}" Margin="0,20,0,0">
+              <Expander Header="ابزارهای سرویس و مدیریت پیشرفته" Foreground="{StaticResource Text}">
+                <StackPanel Margin="0,14,0,0">
+                  <TextBlock Text="این دستورات برای سرویس و عیب‌یابی هستند. عملیات پاک‌سازی با تأیید اجرا می‌شود."
+                             Foreground="{StaticResource Warn}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                  <WrapPanel>
+                    <Button Style="{StaticResource SecondaryButton}" Content="MEMSTATUS" Click="MemStatus_Click" Margin="0,0,8,8" />
+                    <Button Style="{StaticResource SecondaryButton}" Content="SYNCLEDGER" Click="SyncLedger_Click" Margin="0,0,8,8" />
+                    <Button Style="{StaticResource SecondaryButton}" Content="REBOOT" Click="Reboot_Click" Margin="0,0,8,8" />
+                    <Button Style="{StaticResource DangerButton}" Content="RESET EVENT ID" Click="ResetEventId_Click" Margin="0,0,8,8" />
+                    <Button Style="{StaticResource DangerButton}" Content="CLEAR EVENTS" Click="ClearEvents_Click" Margin="0,0,8,8" />
+                    <Button Style="{StaticResource DangerButton}" Content="CLEAR RUNTIME" Click="ClearRuntime_Click" Margin="0,0,8,8" />
+                    <Button Style="{StaticResource DangerButton}" Content="CLEAR MEMORY" Click="ClearMemory_Click" Margin="0,0,8,8" />
+                  </WrapPanel>
+                </StackPanel>
+              </Expander>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Support">
+        <Grid Background="{StaticResource Bg}" Margin="28,24,28,30">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+
+          <StackPanel>
+            <TextBlock Style="{StaticResource PageTitle}" Text="پشتیبانی" />
+            <TextBlock Style="{StaticResource MutedText}" Text="وضعیت سریع و لاگ فنی HiMate Credit" />
+          </StackPanel>
+
+          <UniformGrid Grid.Row="2" Columns="3">
+            <Border Style="{StaticResource Card}" Margin="0,0,8,0">
+              <StackPanel>
+                <TextBlock Text="دستگاه" Foreground="{StaticResource Muted}" />
+                <TextBlock x:Name="SupportDeviceText" Text="قطع" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}" Margin="0,0,8,0">
+              <StackPanel>
+                <TextBlock Text="سرور" Foreground="{StaticResource Muted}" />
+                <TextBlock x:Name="SupportServerText" Text="نامشخص" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
+              <StackPanel>
+                <TextBlock Text="نسخه" Foreground="{StaticResource Muted}" />
+                <TextBlock Text="0.2.0" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
+              </StackPanel>
+            </Border>
+          </UniformGrid>
+
+          <ListBox x:Name="LogsList" Grid.Row="4" />
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <Border Grid.Row="2" Background="{StaticResource Header}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <Grid Margin="14,0">
+        <TextBlock x:Name="BottomDeviceText" Text="دستگاه متصل نیست" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right" />
+        <TextBlock Text="نسخه 0.2.0" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
+      </Grid>
+    </Border>
   </Grid>
 </Window>
