@@ -61,7 +61,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup failed with exit code $LASTEXITCODE"
 }
 
-$setup = Join-Path $out "HiMate-Agent-Setup.exe"
+$setup = Join-Path $out "HiMate-Credit-Setup.exe"
 if (-not (Test-Path $setup)) {
     throw "Installer was not created: $setup"
 }
