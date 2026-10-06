@@ -1,4 +1,4 @@
-name: Build Windows Installer
+name: Build HiMate Credit Installer
 
 on:
   workflow_dispatch:
@@ -29,9 +29,9 @@ jobs:
         shell: pwsh
         run: .\scripts\build-installer.ps1
 
-      - name: Upload HiMate installer
+      - name: Upload HiMate Credit installer
         uses: actions/upload-artifact@v4
         with:
-          name: HiMate-Agent-Installer
-          path: artifacts/installer/HiMate-Agent-Setup.exe
+          name: HiMate-Credit-Installer
+          path: artifacts/installer/HiMate-Credit-Setup.exe
           if-no-files-found: error
