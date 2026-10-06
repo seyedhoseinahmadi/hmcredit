@@ -1,13 +1,12 @@
-name: Build Windows Agent
+name: Build Windows Installer
 
 on:
   workflow_dispatch:
   push:
     branches: [ main, master ]
-  pull_request:
 
 jobs:
-  build:
+  build-installer:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,24 +21,17 @@ jobs:
       - name: Build
         run: dotnet build .\HiMate.Agent.sln -c Release --no-restore
 
-      - name: Publish self-contained win-x64
+      - name: Publish application
         shell: pwsh
         run: .\scripts\publish-win-x64.ps1
 
-      - name: Build Windows installer
+      - name: Build installer
         shell: pwsh
         run: .\scripts\build-installer.ps1
 
-      - name: Upload installer artifact
+      - name: Upload HiMate installer
         uses: actions/upload-artifact@v4
         with:
-          name: HiMate-Agent-Setup
+          name: HiMate-Agent-Installer
           path: artifacts/installer/HiMate-Agent-Setup.exe
-          if-no-files-found: error
-
-      - name: Upload portable artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: HiMate-Agent-Portable-win-x64
-          path: artifacts/win-x64/**
           if-no-files-found: error
