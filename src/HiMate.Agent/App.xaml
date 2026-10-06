@@ -3,76 +3,167 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
   <Application.Resources>
-    <SolidColorBrush x:Key="Bg" Color="#0A0D12" />
-    <SolidColorBrush x:Key="Panel" Color="#11161E" />
-    <SolidColorBrush x:Key="Panel2" Color="#171D26" />
-    <SolidColorBrush x:Key="Line" Color="#27303C" />
-    <SolidColorBrush x:Key="Text" Color="#F5F7FA" />
-    <SolidColorBrush x:Key="Muted" Color="#97A3B3" />
-    <SolidColorBrush x:Key="Accent" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="Good" Color="#3ED598" />
-    <SolidColorBrush x:Key="Warn" Color="#FFB547" />
-    <SolidColorBrush x:Key="Bad" Color="#FF5C6C" />
+    <SolidColorBrush x:Key="Bg" Color="#07131F" />
+    <SolidColorBrush x:Key="Header" Color="#06101A" />
+    <SolidColorBrush x:Key="Panel" Color="#0D1C29" />
+    <SolidColorBrush x:Key="Panel2" Color="#102333" />
+    <SolidColorBrush x:Key="Panel3" Color="#132B3E" />
+    <SolidColorBrush x:Key="Line" Color="#1D3546" />
+    <SolidColorBrush x:Key="LineSoft" Color="#162A39" />
+    <SolidColorBrush x:Key="Text" Color="#F4F8FB" />
+    <SolidColorBrush x:Key="Muted" Color="#8EA7BA" />
+    <SolidColorBrush x:Key="Accent" Color="#16D99A" />
+    <SolidColorBrush x:Key="AccentDark" Color="#0EAE7A" />
+    <SolidColorBrush x:Key="Warn" Color="#F4B942" />
+    <SolidColorBrush x:Key="Bad" Color="#FF6275" />
+    <SolidColorBrush x:Key="Good" Color="#16D99A" />
 
     <Style TargetType="Window">
-      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontFamily" Value="IRANYekanX, Segoe UI" />
       <Setter Property="Background" Value="{StaticResource Bg}" />
       <Setter Property="Foreground" Value="{StaticResource Text}" />
+      <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+      <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+    </Style>
+
+    <Style TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="PageTitle" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="IRANYekanX Bold, IRANYekanX, Segoe UI" />
+      <Setter Property="FontSize" Value="28" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+
+    <Style x:Key="SectionTitle" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="IRANYekanX Bold, IRANYekanX, Segoe UI" />
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <Style x:Key="MutedText" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+    </Style>
+
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Background" Value="{StaticResource Panel}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="18" />
     </Style>
 
     <Style TargetType="TextBox">
       <Setter Property="Background" Value="{StaticResource Panel2}" />
       <Setter Property="Foreground" Value="{StaticResource Text}" />
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
-      <Setter Property="Padding" Value="10,8" />
-      <Setter Property="CaretBrush" Value="White" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="11,9" />
+      <Setter Property="CaretBrush" Value="{StaticResource Accent}" />
+      <Setter Property="SelectionBrush" Value="{StaticResource AccentDark}" />
+      <Setter Property="MinHeight" Value="38" />
     </Style>
 
     <Style TargetType="PasswordBox">
       <Setter Property="Background" Value="{StaticResource Panel2}" />
       <Setter Property="Foreground" Value="{StaticResource Text}" />
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
-      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="11,9" />
+      <Setter Property="CaretBrush" Value="{StaticResource Accent}" />
+      <Setter Property="MinHeight" Value="38" />
     </Style>
 
     <Style TargetType="ComboBox">
       <Setter Property="Background" Value="{StaticResource Panel2}" />
-      <Setter Property="Foreground" Value="Black" />
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="8,6" />
+      <Setter Property="MinHeight" Value="38" />
     </Style>
 
-    <Style x:Key="PrimaryButton" TargetType="Button">
-      <Setter Property="Background" Value="#F5F7FA" />
-      <Setter Property="Foreground" Value="#0A0D12" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Padding" Value="16,9" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="Margin" Value="4" />
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Background" Value="{StaticResource Panel2}" />
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+      <Setter Property="Padding" Value="10,7" />
     </Style>
 
-    <Style x:Key="SecondaryButton" TargetType="Button">
+    <Style TargetType="CheckBox">
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="BaseButton" TargetType="Button">
       <Setter Property="Background" Value="{StaticResource Panel2}" />
       <Setter Property="Foreground" Value="{StaticResource Text}" />
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
-      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="16,9" />
+      <Setter Property="MinHeight" Value="38" />
       <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="Margin" Value="4" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="ButtonBorder"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource Panel3}" />
+                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource AccentDark}" />
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.82" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.45" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
 
-    <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-      <Setter Property="HorizontalContentAlignment" Value="Right" />
-      <Setter Property="Margin" Value="0,4" />
-      <Setter Property="Padding" Value="14,12" />
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+      <Setter Property="Background" Value="{StaticResource Accent}" />
+      <Setter Property="Foreground" Value="#04120D" />
+      <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+    </Style>
+
+    <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}" />
+
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+      <Setter Property="Foreground" Value="{StaticResource Bad}" />
+      <Setter Property="BorderBrush" Value="#5A2833" />
+    </Style>
+
+    <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0,0,0,2" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Padding" Value="13,11" />
+      <Setter Property="Margin" Value="2,0" />
+      <Setter Property="MinHeight" Value="42" />
+      <Setter Property="FontWeight" Value="Normal" />
     </Style>
 
     <Style TargetType="DataGrid">
       <Setter Property="Background" Value="{StaticResource Panel}" />
       <Setter Property="Foreground" Value="{StaticResource Text}" />
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="BorderThickness" Value="1" />
       <Setter Property="GridLinesVisibility" Value="Horizontal" />
-      <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource Line}" />
+      <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource LineSoft}" />
       <Setter Property="RowBackground" Value="{StaticResource Panel}" />
       <Setter Property="AlternatingRowBackground" Value="{StaticResource Panel2}" />
       <Setter Property="HeadersVisibility" Value="Column" />
@@ -80,6 +171,38 @@
       <Setter Property="CanUserAddRows" Value="False" />
       <Setter Property="CanUserDeleteRows" Value="False" />
       <Setter Property="IsReadOnly" Value="True" />
+      <Setter Property="RowHeight" Value="42" />
+      <Setter Property="ColumnHeaderHeight" Value="42" />
+    </Style>
+
+    <Style TargetType="DataGridColumnHeader">
+      <Setter Property="Background" Value="{StaticResource Panel2}" />
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style TargetType="DataGridCell">
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="Padding" Value="8,0" />
+    </Style>
+
+    <Style TargetType="ListBox">
+      <Setter Property="Background" Value="{StaticResource Panel}" />
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style TargetType="ListBoxItem">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+      <Setter Property="Padding" Value="10,7" />
     </Style>
   </Application.Resources>
 </Application>
