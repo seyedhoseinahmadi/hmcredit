@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using HiMate.Agent.Models;
 using HiMate.Agent.Protocol;
 using HiMate.Agent.Services;
@@ -20,6 +23,9 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<CardEvent> _events = [];
     private readonly ObservableCollection<ServerCommand> _commands = [];
 
+    private string _serverVersion = "-";
+    private DateTime? _lastSyncAt;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -32,10 +38,13 @@ public partial class MainWindow : Window
         try
         {
             _settings = await _settingsService.LoadAsync();
+
             _store = new EventStore(_settingsService.DatabasePath);
             await _store.InitializeAsync();
+
             _serial = new SerialDeviceService(_log);
             _serial.LineReceived += Serial_LineReceived;
+
             _sync = new SyncService(_store, _api, _log);
 
             LogsList.ItemsSource = _log.Items;
@@ -44,15 +53,31 @@ public partial class MainWindow : Window
 
             LoadSettingsIntoUi();
             RefreshPorts();
-            ConfigureApi();
-            await RefreshDashboardAsync();
-            await RefreshTransactionsAsync();
-            _log.Info("HiMate Agent ready");
+            ConfigureApiFromSettings();
+
+            SetActiveNav(NavHome, 0);
+            ApplyDeviceState(false, "در انتظار اتصال");
+            ApplyServerState(false, HasServerSettings() ? "در حال بررسی" : "تنظیم نشده", unknown: true);
+
+            if (_settings.AutoConnect)
+            {
+                TryConnectSavedDevice(quiet: true);
+            }
+
+            if (HasServerSettings())
+            {
+                await TryPingServerAsync(quiet: true);
+            }
+
+            await RefreshAllUiAsync();
+
+            _log.Info("HiMate Credit ready");
             _ = BackgroundLoopAsync(_cts.Token);
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.ToString(), "HiMate Agent startup error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _log.Error($"Startup failed: {ex.Message}");
+            MessageBox.Show(ex.Message, "HiMate Credit", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -62,15 +87,22 @@ public partial class MainWindow : Window
         {
             try
             {
+                if (_settings.AutoConnect && _serial?.IsConnected != true)
+                {
+                    TryConnectSavedDevice(quiet: true);
+                }
+
                 if (HasServerSettings())
                 {
-                    await _sync.SyncOnceAsync(ct);
-                    await Dispatcher.InvokeAsync(async () =>
+                    var online = await TryPingServerAsync(quiet: true, ct);
+                    if (online)
                     {
-                        await RefreshDashboardAsync();
-                        await RefreshTransactionsAsync();
-                    });
+                        await _sync.SyncOnceAsync(ct);
+                        _lastSyncAt = DateTime.Now;
+                    }
                 }
+
+                await RefreshUiFromAnyThreadAsync();
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -78,7 +110,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                _log.Warn($"Background sync: {ex.Message}");
+                _log.Warn($"Background task: {ex.Message}");
             }
 
             try
@@ -94,17 +126,19 @@ public partial class MainWindow : Window
 
     private async void Serial_LineReceived(string line)
     {
-        if (!DeviceProtocolParser.TryParseCardEvent(line, out var cardEvent))
+        try
         {
-            if (line.StartsWith("EVENT_ACK_RESULT|", StringComparison.OrdinalIgnoreCase))
+            await Dispatcher.InvokeAsync(() =>
+            {
+                LatestDeviceResponseText.Text = line;
+                UpdateDeviceResponseUi(line);
+            });
+
+            if (!DeviceProtocolParser.TryParseCardEvent(line, out var cardEvent))
             {
                 return;
             }
-            return;
-        }
 
-        try
-        {
             var result = await _store.SaveFromDeviceAsync(cardEvent);
             if (result == SaveEventResult.Conflict)
             {
@@ -112,52 +146,43 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Durable SQLite commit happened before this ACK.
             _serial.Send($"EVENT_ACK|ID={cardEvent.DeviceEventId}");
             await _store.MarkDeviceAckedAsync(cardEvent);
             _log.Info($"Event saved locally: ID={cardEvent.DeviceEventId} {cardEvent.Type} UID={cardEvent.Uid}");
 
-            await Dispatcher.InvokeAsync(async () =>
+            if (cardEvent.Type.Equals("ADD", StringComparison.OrdinalIgnoreCase))
             {
-                await RefreshDashboardAsync();
-                await RefreshTransactionsAsync();
-            });
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    TopupFeedbackText.Text = $"شارژ ثبت شد؛ مانده کارت: {cardEvent.Remaining}";
+                    TopupFeedbackText.Foreground = Brush("Good");
+                });
+            }
+
+            await RefreshUiFromAnyThreadAsync();
         }
         catch (Exception ex)
         {
-            _log.Error($"Event persistence failed; no ACK sent: {ex.Message}");
+            _log.Error($"Event processing failed: {ex.Message}");
         }
     }
 
-    private void ConfigureApi()
+    private void UpdateDeviceResponseUi(string line)
     {
-        _api.BaseUrl = _settings.ServerUrl;
-        _api.DeviceCode = _settings.DeviceCode;
-        try { _api.DeviceSecret = _secretStore.Load(_settingsService.SecretPath); }
-        catch (Exception ex) { _log.Warn($"Could not load protected secret: {ex.Message}"); }
-        SideDevice.Text = $"Device: {(_settings.DeviceCode.Length > 0 ? _settings.DeviceCode : "-")}";
-    }
+        if (line.StartsWith("DEFAULT_DEBIT", StringComparison.OrdinalIgnoreCase))
+        {
+            var match = Regex.Match(line, @"AMOUNT\s*=\s*(\d+)", RegexOptions.IgnoreCase);
+            if (!match.Success)
+            {
+                match = Regex.Match(line, @"(\d+)\s*$");
+            }
 
-    private bool HasServerSettings() =>
-        !string.IsNullOrWhiteSpace(_api.BaseUrl) &&
-        !string.IsNullOrWhiteSpace(_api.DeviceCode) &&
-        !string.IsNullOrWhiteSpace(_api.DeviceSecret);
-
-    private async Task RefreshDashboardAsync()
-    {
-        if (_store is null) return;
-        PendingCountText.Text = (await _store.CountPendingAsync()).ToString();
-        PortText.Text = _serial?.IsConnected == true ? _serial.ConnectedPort : (_settings.ComPort.Length > 0 ? _settings.ComPort : "-");
-        SerialBadge.Text = _serial?.IsConnected == true ? "SERIAL ONLINE" : "SERIAL OFFLINE";
-        SerialBadge.Foreground = (System.Windows.Media.Brush)FindResource(_serial?.IsConnected == true ? "Good" : "Bad");
-    }
-
-    private async Task RefreshTransactionsAsync()
-    {
-        if (_store is null) return;
-        var items = await _store.GetRecentAsync();
-        _events.Clear();
-        foreach (var x in items) _events.Add(x);
+            if (match.Success)
+            {
+                CurrentDebitText.Text = $"مقدار فعلی دستگاه: {match.Groups[1].Value}";
+                CurrentDebitText.Foreground = Brush("Muted");
+            }
+        }
     }
 
     private void LoadSettingsIntoUi()
@@ -165,13 +190,51 @@ public partial class MainWindow : Window
         ServerUrlBox.Text = _settings.ServerUrl;
         DeviceCodeBox.Text = _settings.DeviceCode;
         BaudBox.Text = _settings.BaudRate.ToString();
-        try { DeviceSecretBox.Password = _secretStore.Load(_settingsService.SecretPath); } catch { DeviceSecretBox.Password = ""; }
+        AutoConnectCheck.IsChecked = _settings.AutoConnect;
+
+        try
+        {
+            DeviceSecretBox.Password = _secretStore.Load(_settingsService.SecretPath);
+        }
+        catch
+        {
+            DeviceSecretBox.Password = "";
+        }
     }
+
+    private void ConfigureApiFromSettings()
+    {
+        _api.BaseUrl = _settings.ServerUrl;
+        _api.DeviceCode = _settings.DeviceCode;
+
+        try
+        {
+            _api.DeviceSecret = _secretStore.Load(_settingsService.SecretPath);
+        }
+        catch (Exception ex)
+        {
+            _api.DeviceSecret = "";
+            _log.Warn($"Could not load protected secret: {ex.Message}");
+        }
+    }
+
+    private void ConfigureApiFromUi()
+    {
+        _api.BaseUrl = ServerUrlBox.Text.Trim();
+        _api.DeviceCode = DeviceCodeBox.Text.Trim();
+        _api.DeviceSecret = DeviceSecretBox.Password;
+    }
+
+    private bool HasServerSettings() =>
+        !string.IsNullOrWhiteSpace(_api.BaseUrl) &&
+        !string.IsNullOrWhiteSpace(_api.DeviceCode) &&
+        !string.IsNullOrWhiteSpace(_api.DeviceSecret);
 
     private void RefreshPorts()
     {
         var ports = SerialDeviceService.GetPorts();
         ComPortBox.ItemsSource = ports;
+
         if (!string.IsNullOrWhiteSpace(_settings.ComPort) && ports.Contains(_settings.ComPort))
         {
             ComPortBox.SelectedItem = _settings.ComPort;
@@ -182,87 +245,309 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool TryConnectSavedDevice(bool quiet)
+    {
+        if (_serial.IsConnected)
+        {
+            ApplyDeviceState(true, _serial.ConnectedPort);
+            return true;
+        }
+
+        var port = _settings.ComPort;
+        if (string.IsNullOrWhiteSpace(port))
+        {
+            ApplyDeviceState(false, "پورت تنظیم نشده");
+            if (!quiet) DeviceTestFeedbackText.Text = "ابتدا پورت دستگاه را انتخاب کنید.";
+            return false;
+        }
+
+        var ports = SerialDeviceService.GetPorts();
+        if (!ports.Contains(port))
+        {
+            ApplyDeviceState(false, $"پورت {port} پیدا نشد");
+            if (!quiet) DeviceTestFeedbackText.Text = $"پورت ذخیره‌شده {port} در دسترس نیست.";
+            return false;
+        }
+
+        try
+        {
+            _serial.Connect(port, _settings.BaudRate);
+            _serial.Send("GETDEBIT");
+            _serial.Send("EVENTS");
+
+            ApplyDeviceState(true, port);
+            DeviceTestFeedbackText.Text = $"اتصال با {port} برقرار شد.";
+            DeviceTestFeedbackText.Foreground = Brush("Good");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ApplyDeviceState(false, "خطای اتصال");
+            DeviceTestFeedbackText.Text = ex.Message;
+            DeviceTestFeedbackText.Foreground = Brush("Bad");
+            _log.Warn($"Serial auto-connect failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<bool> TryPingServerAsync(bool quiet, CancellationToken ct = default)
+    {
+        if (!HasServerSettings())
+        {
+            ApplyServerState(false, "تنظیم نشده", unknown: true);
+            if (!quiet)
+            {
+                ServerTestFeedbackText.Text = "Server URL، Device Code و Device Secret را کامل کنید.";
+                ServerTestFeedbackText.Foreground = Brush("Warn");
+            }
+            return false;
+        }
+
+        try
+        {
+            var ping = await _api.PingAsync(ct);
+            _serverVersion = string.IsNullOrWhiteSpace(ping.Version) ? "-" : ping.Version;
+            ApplyServerState(true, $"Core {_serverVersion}");
+
+            if (!quiet)
+            {
+                ServerTestFeedbackText.Text = $"سرور در دسترس است — HiMate Core {_serverVersion}";
+                ServerTestFeedbackText.Foreground = Brush("Good");
+            }
+
+            _log.Info($"Server ping OK: Core {_serverVersion}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ApplyServerState(false, "خطای ارتباط");
+            if (!quiet)
+            {
+                ServerTestFeedbackText.Text = ex.Message;
+                ServerTestFeedbackText.Foreground = Brush("Bad");
+            }
+            _log.Warn($"Server ping failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void ApplyDeviceState(bool connected, string detail)
+    {
+        var brush = Brush(connected ? "Good" : "Bad");
+        DeviceDot.Fill = brush;
+        HeaderDeviceState.Text = connected ? "دستگاه متصل" : "دستگاه قطع";
+        HomeDeviceState.Text = connected ? "متصل" : "در انتظار اتصال";
+        HomeDeviceState.Foreground = brush;
+        HomeDeviceSub.Text = detail;
+        SupportDeviceText.Text = connected ? $"متصل — {detail}" : detail;
+        SupportDeviceText.Foreground = brush;
+        BottomDeviceText.Text = connected ? $"دستگاه متصل: {detail}" : $"دستگاه متصل نیست — {detail}";
+        BottomDeviceText.Foreground = connected ? Brush("Good") : Brush("Muted");
+    }
+
+    private void ApplyServerState(bool online, string detail, bool unknown = false)
+    {
+        var brush = unknown ? Brush("Warn") : Brush(online ? "Good" : "Bad");
+
+        ServerDot.Fill = brush;
+        HeaderServerState.Text = online ? "سرور متصل" : (unknown ? "سرور نامشخص" : "سرور قطع");
+        HomeServerState.Text = online ? $"وصل — {detail}" : detail;
+        HomeServerState.Foreground = brush;
+        SyncServerStateText.Text = online ? $"متصل — {detail}" : detail;
+        SyncServerStateText.Foreground = brush;
+        SupportServerText.Text = online ? $"متصل — {detail}" : detail;
+        SupportServerText.Foreground = brush;
+        CoreVersionText.Text = _serverVersion;
+    }
+
+    private async Task RefreshDashboardAsync()
+    {
+        if (_store is null) return;
+
+        var pending = await _store.CountPendingAsync();
+        var problems = await _store.CountProblemsAsync();
+        var recent = await _store.GetRecentAsync(1);
+
+        PendingCountText.Text = pending.ToString();
+        ProblemCountText.Text = problems.ToString();
+        SyncPendingText.Text = pending.ToString();
+        SyncProblemText.Text = problems.ToString();
+
+        HomeDeviceCode.Text = string.IsNullOrWhiteSpace(_settings.DeviceCode) ? "-" : _settings.DeviceCode;
+        HomePortText.Text = _serial.IsConnected ? _serial.ConnectedPort : (string.IsNullOrWhiteSpace(_settings.ComPort) ? "-" : _settings.ComPort);
+        HomeLastSyncText.Text = _lastSyncAt.HasValue ? _lastSyncAt.Value.ToString("HH:mm:ss") : "-";
+
+        if (recent.Count == 0)
+        {
+            LastEventText.Text = "هنوز رویدادی ثبت نشده است.";
+            CardDetailsText.Text = "اطلاعات آخرین کارت پس از دریافت رویداد در این بخش نمایش داده می‌شود.";
+            CardPromptText.Text = "کارت را روی دستگاه قرار دهید.";
+            return;
+        }
+
+        var e = recent[0];
+        LastEventText.Text = $"UID: {e.Uid}   |   {TranslateType(e.Type)}   |   مقدار: {e.Amount}   |   مانده: {e.Remaining}   |   {TranslateSync(e.SyncStatus)}";
+        CardPromptText.Text = e.Uid;
+        CardDetailsText.Text = $"اعتبار کل: {e.Total}     مانده: {e.Remaining}     TX: {e.Tx}     GEN: {e.Gen}     SEQ: {e.Seq}";
+    }
+
+    private async Task RefreshTransactionsAsync()
+    {
+        if (_store is null) return;
+
+        var items = await _store.GetRecentAsync();
+        _events.Clear();
+        foreach (var item in items)
+        {
+            _events.Add(item);
+        }
+    }
+
+    private async Task RefreshAllUiAsync()
+    {
+        await RefreshDashboardAsync();
+        await RefreshTransactionsAsync();
+    }
+
+    private Task RefreshUiFromAnyThreadAsync()
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            return RefreshAllUiAsync();
+        }
+
+        var op = Dispatcher.InvokeAsync(() => RefreshAllUiAsync());
+        return op.Task.Unwrap();
+    }
+
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
-        if (!int.TryParse(BaudBox.Text.Trim(), out var baud) || baud <= 0) baud = 115200;
-        _settings.ServerUrl = ServerUrlBox.Text.Trim();
-        _settings.DeviceCode = DeviceCodeBox.Text.Trim();
-        _settings.ComPort = ComPortBox.SelectedItem?.ToString() ?? ComPortBox.Text.Trim();
-        _settings.BaudRate = baud;
-        await _settingsService.SaveAsync(_settings);
-        if (!string.IsNullOrWhiteSpace(DeviceSecretBox.Password))
+        try
         {
-            _secretStore.Save(_settingsService.SecretPath, DeviceSecretBox.Password);
+            if (!int.TryParse(BaudBox.Text.Trim(), out var baud) || baud <= 0)
+            {
+                baud = 115200;
+                BaudBox.Text = "115200";
+            }
+
+            var oldPort = _settings.ComPort;
+            var oldBaud = _settings.BaudRate;
+
+            _settings.ServerUrl = ServerUrlBox.Text.Trim();
+            _settings.DeviceCode = DeviceCodeBox.Text.Trim();
+            _settings.ComPort = ComPortBox.SelectedItem?.ToString() ?? ComPortBox.Text.Trim();
+            _settings.BaudRate = baud;
+            _settings.AutoConnect = AutoConnectCheck.IsChecked == true;
+
+            await _settingsService.SaveAsync(_settings);
+
+            if (!string.IsNullOrWhiteSpace(DeviceSecretBox.Password))
+            {
+                _secretStore.Save(_settingsService.SecretPath, DeviceSecretBox.Password);
+            }
+
+            ConfigureApiFromSettings();
+
+            if (_serial.IsConnected && (!string.Equals(oldPort, _settings.ComPort, StringComparison.OrdinalIgnoreCase) || oldBaud != _settings.BaudRate))
+            {
+                _serial.Disconnect();
+            }
+
+            if (_settings.AutoConnect && !_serial.IsConnected)
+            {
+                TryConnectSavedDevice(quiet: true);
+            }
+
+            SettingsFeedbackText.Text = "تنظیمات ذخیره شد.";
+            SettingsFeedbackText.Foreground = Brush("Good");
+            _log.Info("Settings saved");
+
+            if (HasServerSettings())
+            {
+                await TryPingServerAsync(quiet: true);
+            }
+
+            await RefreshDashboardAsync();
         }
-        ConfigureApi();
-        _log.Info("Settings saved");
-        MessageBox.Show("تنظیمات ذخیره شد.", "HiMate", MessageBoxButton.OK, MessageBoxImage.Information);
+        catch (Exception ex)
+        {
+            SettingsFeedbackText.Text = ex.Message;
+            SettingsFeedbackText.Foreground = Brush("Bad");
+            _log.Error($"Save settings failed: {ex.Message}");
+        }
+    }
+
+    private void TestDevice_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!int.TryParse(BaudBox.Text.Trim(), out var baud) || baud <= 0)
+            {
+                baud = 115200;
+            }
+
+            var port = ComPortBox.SelectedItem?.ToString() ?? ComPortBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(port))
+            {
+                DeviceTestFeedbackText.Text = "پورت دستگاه را انتخاب کنید.";
+                DeviceTestFeedbackText.Foreground = Brush("Warn");
+                return;
+            }
+
+            if (_serial.IsConnected)
+            {
+                _serial.Disconnect();
+            }
+
+            _serial.Connect(port, baud);
+            _serial.Send("GETDEBIT");
+            _serial.Send("EVENTS");
+
+            ApplyDeviceState(true, port);
+            DeviceTestFeedbackText.Text = $"اتصال با {port} موفق بود.";
+            DeviceTestFeedbackText.Foreground = Brush("Good");
+        }
+        catch (Exception ex)
+        {
+            ApplyDeviceState(false, "خطای اتصال");
+            DeviceTestFeedbackText.Text = ex.Message;
+            DeviceTestFeedbackText.Foreground = Brush("Bad");
+            _log.Warn($"Serial test failed: {ex.Message}");
+        }
     }
 
     private async void TestServer_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            _api.BaseUrl = ServerUrlBox.Text.Trim();
-            var ping = await _api.PingAsync();
-            CoreVersionText.Text = ping.Version;
-            ServerBadge.Text = "SERVER ONLINE";
-            ServerBadge.Foreground = (System.Windows.Media.Brush)FindResource("Good");
-            _log.Info($"Server ping OK: Core {ping.Version}");
-        }
-        catch (Exception ex)
-        {
-            ServerBadge.Text = "SERVER ERROR";
-            ServerBadge.Foreground = (System.Windows.Media.Brush)FindResource("Bad");
-            _log.Error($"Server ping failed: {ex.Message}");
-        }
-    }
-
-    private void ConnectButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (_serial.IsConnected)
-            {
-                _serial.Disconnect();
-                ConnectButton.Content = "اتصال دستگاه";
-            }
-            else
-            {
-                var port = ComPortBox.SelectedItem?.ToString() ?? _settings.ComPort;
-                if (string.IsNullOrWhiteSpace(port)) throw new InvalidOperationException("COM port را انتخاب کنید.");
-                _serial.Connect(port, _settings.BaudRate);
-                ConnectButton.Content = "قطع اتصال";
-                _serial.Send("GETDEBIT");
-                _serial.Send("EVENTS");
-            }
-            _ = RefreshDashboardAsync();
-        }
-        catch (Exception ex)
-        {
-            _log.Error($"Serial connection failed: {ex.Message}");
-            MessageBox.Show(ex.Message, "Serial", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        ConfigureApiFromUi();
+        await TryPingServerAsync(quiet: false);
     }
 
     private async void SyncNow_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            ConfigureApi();
-            if (!HasServerSettings()) throw new InvalidOperationException("Server URL, Device Code و Device Secret را تنظیم کنید.");
-            var ping = await _api.PingAsync();
-            CoreVersionText.Text = ping.Version;
-            ServerBadge.Text = "SERVER ONLINE";
-            ServerBadge.Foreground = (System.Windows.Media.Brush)FindResource("Good");
+            ConfigureApiFromSettings();
+
+            if (!HasServerSettings())
+            {
+                SetActiveNav(NavSettings, 5);
+                SettingsFeedbackText.Text = "ابتدا تنظیمات سرور را تکمیل و ذخیره کنید.";
+                SettingsFeedbackText.Foreground = Brush("Warn");
+                return;
+            }
+
+            if (!await TryPingServerAsync(quiet: true))
+            {
+                return;
+            }
+
             await _sync.SyncOnceAsync();
-            await RefreshDashboardAsync();
-            await RefreshTransactionsAsync();
+            _lastSyncAt = DateTime.Now;
+            await RefreshAllUiAsync();
         }
         catch (Exception ex)
         {
-            ServerBadge.Text = "SERVER ERROR";
-            ServerBadge.Foreground = (System.Windows.Media.Brush)FindResource("Bad");
+            ApplyServerState(false, "خطای Sync");
             _log.Error($"Manual sync failed: {ex.Message}");
         }
     }
@@ -271,37 +556,164 @@ public partial class MainWindow : Window
     {
         try
         {
-            ConfigureApi();
-            await _api.PingAsync();
+            ConfigureApiFromSettings();
+            if (!HasServerSettings())
+            {
+                throw new InvalidOperationException("تنظیمات سرور کامل نیست.");
+            }
+
+            var ping = await _api.PingAsync();
+            _serverVersion = string.IsNullOrWhiteSpace(ping.Version) ? "-" : ping.Version;
+
             var response = await _api.GetCommandsAsync();
             _commands.Clear();
-            foreach (var cmd in response.Commands) _commands.Add(cmd);
+            foreach (var cmd in response.Commands)
+            {
+                _commands.Add(cmd);
+            }
+
+            ApplyServerState(true, $"Core {_serverVersion}");
             _log.Info($"Commands loaded: {_commands.Count}");
         }
         catch (Exception ex)
         {
             _log.Error($"Get commands failed: {ex.Message}");
+            ApplyServerState(false, "خطای دریافت دستور");
         }
     }
 
-    private void SendDevice(string cmd)
+    private void StartTopup_Click(object sender, RoutedEventArgs e)
     {
-        try { _serial.Send(cmd); }
-        catch (Exception ex) { _log.Error(ex.Message); }
+        if (!_serial.IsConnected)
+        {
+            TopupFeedbackText.Text = "دستگاه متصل نیست. اتصال را از تنظیمات بررسی کنید.";
+            TopupFeedbackText.Foreground = Brush("Bad");
+            return;
+        }
+
+        if (!int.TryParse(TopupAmountBox.Text.Trim(), out var amount) || amount <= 0 || amount > 65535)
+        {
+            TopupFeedbackText.Text = "مبلغ شارژ معتبر نیست.";
+            TopupFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        try
+        {
+            _serial.Send($"CREDIT {amount}");
+            TopupFeedbackText.Text = $"آماده شارژ {amount} اعتبار؛ کارت را روی دستگاه قرار دهید.";
+            TopupFeedbackText.Foreground = Brush("Accent");
+        }
+        catch (Exception ex)
+        {
+            TopupFeedbackText.Text = ex.Message;
+            TopupFeedbackText.Foreground = Brush("Bad");
+        }
     }
 
-    private void RequestEvents_Click(object sender, RoutedEventArgs e) => SendDevice("EVENTS");
-    private void GetDebit_Click(object sender, RoutedEventArgs e) => SendDevice("GETDEBIT");
-    private void Status_Click(object sender, RoutedEventArgs e) => SendDevice("STATUS");
+    private void SetDebit_Click(object sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(DefaultDebitBox.Text.Trim(), out var amount) || amount <= 0 || amount > 65535)
+        {
+            CurrentDebitText.Text = "مقدار برداشت معتبر نیست.";
+            CurrentDebitText.Foreground = Brush("Warn");
+            return;
+        }
+
+        try
+        {
+            _serial.Send($"SETDEBIT {amount}");
+            _serial.Send("GETDEBIT");
+            CurrentDebitText.Text = "درخواست ذخیره مقدار برداشت ارسال شد.";
+            CurrentDebitText.Foreground = Brush("Accent");
+        }
+        catch (Exception ex)
+        {
+            CurrentDebitText.Text = ex.Message;
+            CurrentDebitText.Foreground = Brush("Bad");
+        }
+    }
+
+    private void SendDevice(string command)
+    {
+        try
+        {
+            if (!_serial.IsConnected)
+            {
+                throw new InvalidOperationException("دستگاه متصل نیست.");
+            }
+
+            _serial.Send(command);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn(ex.Message);
+            LatestDeviceResponseText.Text = ex.Message;
+        }
+    }
+
     private void Balance_Click(object sender, RoutedEventArgs e) => SendDevice("BALANCE");
+    private void Status_Click(object sender, RoutedEventArgs e) => SendDevice("STATUS");
     private void RefreshTransactions_Click(object sender, RoutedEventArgs e) => _ = RefreshTransactionsAsync();
     private void RefreshPorts_Click(object sender, RoutedEventArgs e) => RefreshPorts();
 
-    private void ShowDashboard_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 0;
-    private void ShowTransactions_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 1;
-    private void ShowCommands_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 2;
-    private void ShowSettings_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 3;
-    private void ShowLogs_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 4;
+    private void MemStatus_Click(object sender, RoutedEventArgs e) => SendDevice("MEMSTATUS");
+    private void SyncLedger_Click(object sender, RoutedEventArgs e) => SendDevice("SYNCLEDGER");
+    private void Reboot_Click(object sender, RoutedEventArgs e) => ConfirmAndSend("REBOOT", "دستگاه راه‌اندازی مجدد شود؟");
+    private void ResetEventId_Click(object sender, RoutedEventArgs e) => ConfirmAndSend("RESET_EVENT_ID CONFIRM", "Event ID دستگاه ریست شود؟ این عملیات فقط وقتی صف دستگاه خالی است باید انجام شود.");
+    private void ClearEvents_Click(object sender, RoutedEventArgs e) => ConfirmAndSend("CLEAR EVENTS", "صف رویدادهای دستگاه پاک شود؟");
+    private void ClearRuntime_Click(object sender, RoutedEventArgs e) => ConfirmAndSend("CLEAR RUNTIME", "اطلاعات Runtime دستگاه پاک شود؟");
+    private void ClearMemory_Click(object sender, RoutedEventArgs e) => ConfirmAndSend("CLEAR MEMORY", "حافظه دستگاه پاک شود؟ این عملیات برگشت‌پذیر نیست.");
+
+    private void ConfirmAndSend(string command, string message)
+    {
+        var result = MessageBox.Show(message, "HiMate Credit", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (result == MessageBoxResult.Yes)
+        {
+            SendDevice(command);
+        }
+    }
+
+    private void ShowHome_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavHome, 0);
+    private void ShowCard_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavCard, 1);
+    private void ShowTransactions_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavTransactions, 2);
+    private void ShowTopup_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavTopup, 3);
+    private void ShowSync_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavSync, 4);
+    private void ShowSettings_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavSettings, 5);
+    private void ShowSupport_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavSupport, 6);
+
+    private void SetActiveNav(Button active, int index)
+    {
+        foreach (var button in new[] { NavHome, NavCard, NavTransactions, NavTopup, NavSync, NavSettings, NavSupport })
+        {
+            button.Foreground = Brush("Text");
+            button.BorderBrush = Brushes.Transparent;
+        }
+
+        active.Foreground = Brush("Accent");
+        active.BorderBrush = Brush("Accent");
+        MainTabs.SelectedIndex = index;
+    }
+
+    private Brush Brush(string key) => (Brush)FindResource(key);
+
+    private static string TranslateType(string type) => type.ToUpperInvariant() switch
+    {
+        "ISSUE" => "صدور",
+        "ADD" => "شارژ",
+        "DEBIT" => "برداشت",
+        _ => type
+    };
+
+    private static string TranslateSync(string status) => status.ToUpperInvariant() switch
+    {
+        "SYNCED" => "همگام‌شده",
+        "PENDING" => "در انتظار ارسال",
+        "RETRY" => "تلاش مجدد",
+        "CONFLICT" => "نیازمند بررسی",
+        "INVALID" => "نامعتبر",
+        _ => status
+    };
 
     private void ShutdownServices()
     {

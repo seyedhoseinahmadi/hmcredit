@@ -159,6 +159,15 @@ public sealed class EventStore
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
+    public async Task<int> CountProblemsAsync()
+    {
+        await using var db = new SqliteConnection(_connectionString);
+        await db.OpenAsync();
+        var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM events WHERE sync_status IN ('CONFLICT','INVALID')";
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
     public async Task MarkSyncedAsync(long localId, long? serverId, string status)
     {
         await ExecuteAsync("UPDATE events SET sync_status='SYNCED',server_id=$sid,last_error='' WHERE local_id=$id",
