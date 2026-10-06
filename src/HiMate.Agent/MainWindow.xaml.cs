@@ -235,11 +235,26 @@ public partial class MainWindow : Window
         var ports = SerialDeviceService.GetPorts();
         ComPortBox.ItemsSource = ports;
 
+        if (ports.Length == 0)
+        {
+            ComPortBox.SelectedIndex = -1;
+            DeviceTestFeedbackText.Text = "ویندوز هیچ پورت COM فعالی گزارش نکرد. اگر دستگاه وصل است، درایور USB-Serial را بررسی کنید.";
+            DeviceTestFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        DeviceTestFeedbackText.Text = $"پورت‌های شناسایی‌شده: {string.Join("، ", ports)}";
+        DeviceTestFeedbackText.Foreground = Brush("Muted");
+
         if (!string.IsNullOrWhiteSpace(_settings.ComPort) && ports.Contains(_settings.ComPort))
         {
             ComPortBox.SelectedItem = _settings.ComPort;
         }
-        else if (ports.Length > 0)
+        else if (ports.Length == 1)
+        {
+            ComPortBox.SelectedIndex = 0;
+        }
+        else
         {
             ComPortBox.SelectedIndex = 0;
         }
@@ -253,20 +268,40 @@ public partial class MainWindow : Window
             return true;
         }
 
+        var ports = SerialDeviceService.GetPorts();
         var port = _settings.ComPort;
-        if (string.IsNullOrWhiteSpace(port))
+
+        if (ports.Length == 0)
         {
-            ApplyDeviceState(false, "پورت تنظیم نشده");
-            if (!quiet) DeviceTestFeedbackText.Text = "ابتدا پورت دستگاه را انتخاب کنید.";
+            ApplyDeviceState(false, "هیچ COM پیدا نشد");
+            if (!quiet)
+            {
+                DeviceTestFeedbackText.Text = "ویندوز هیچ پورت COM فعالی گزارش نکرد. کابل/درایور USB-Serial را بررسی کنید.";
+                DeviceTestFeedbackText.Foreground = Brush("Warn");
+            }
             return false;
         }
 
-        var ports = SerialDeviceService.GetPorts();
-        if (!ports.Contains(port))
+        if (string.IsNullOrWhiteSpace(port) || !ports.Contains(port))
         {
-            ApplyDeviceState(false, $"پورت {port} پیدا نشد");
-            if (!quiet) DeviceTestFeedbackText.Text = $"پورت ذخیره‌شده {port} در دسترس نیست.";
-            return false;
+            if (ports.Length == 1)
+            {
+                port = ports[0];
+                _settings.ComPort = port;
+                ComPortBox.SelectedItem = port;
+                _ = _settingsService.SaveAsync(_settings);
+                _log.Info($"Auto-selected serial port: {port}");
+            }
+            else
+            {
+                ApplyDeviceState(false, string.IsNullOrWhiteSpace(port) ? "پورت تنظیم نشده" : $"پورت {port} پیدا نشد");
+                if (!quiet)
+                {
+                    DeviceTestFeedbackText.Text = $"چند پورت پیدا شد: {string.Join("، ", ports)}. پورت دستگاه را انتخاب کنید.";
+                    DeviceTestFeedbackText.Foreground = Brush("Warn");
+                }
+                return false;
+            }
         }
 
         try
@@ -656,6 +691,8 @@ public partial class MainWindow : Window
     private void Status_Click(object sender, RoutedEventArgs e) => SendDevice("STATUS");
     private void RefreshTransactions_Click(object sender, RoutedEventArgs e) => _ = RefreshTransactionsAsync();
     private void RefreshPorts_Click(object sender, RoutedEventArgs e) => RefreshPorts();
+
+    private void ComPortBox_DropDownOpened(object sender, EventArgs e) => RefreshPorts();
 
     private void MemStatus_Click(object sender, RoutedEventArgs e) => SendDevice("MEMSTATUS");
     private void SyncLedger_Click(object sender, RoutedEventArgs e) => SendDevice("SYNCLEDGER");
