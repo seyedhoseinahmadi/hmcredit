@@ -9,12 +9,40 @@ public sealed class SettingsService
     public string AppDataDir { get; }
     public string SettingsPath => Path.Combine(AppDataDir, "settings.json");
     public string SecretPath => Path.Combine(AppDataDir, "secret.dat");
-    public string DatabasePath => Path.Combine(AppDataDir, "agent.db");
+    public string DatabasePath => Path.Combine(AppDataDir, "credit.db");
 
     public SettingsService()
     {
-        AppDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HiMate", "Agent");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        AppDataDir = Path.Combine(localAppData, "HiMate", "Credit");
         Directory.CreateDirectory(AppDataDir);
+
+        MigrateLegacyAgentData(localAppData);
+    }
+
+    private void MigrateLegacyAgentData(string localAppData)
+    {
+        var legacyDir = Path.Combine(localAppData, "HiMate", "Agent");
+        if (!Directory.Exists(legacyDir)) return;
+
+        CopyIfMissing(Path.Combine(legacyDir, "settings.json"), SettingsPath);
+        CopyIfMissing(Path.Combine(legacyDir, "secret.dat"), SecretPath);
+        CopyIfMissing(Path.Combine(legacyDir, "agent.db"), DatabasePath);
+    }
+
+    private static void CopyIfMissing(string source, string destination)
+    {
+        try
+        {
+            if (File.Exists(source) && !File.Exists(destination))
+            {
+                File.Copy(source, destination, overwrite: false);
+            }
+        }
+        catch
+        {
+            // Migration is best-effort. The application can still start with fresh local state.
+        }
     }
 
     public async Task<AgentSettings> LoadAsync()
