@@ -1,4 +1,4 @@
-name: Release Windows Agent
+name: Release Windows Installer
 
 on:
   workflow_dispatch:
@@ -33,17 +33,19 @@ jobs:
             "HIMATE_VERSION=${{ github.ref_name }}" | Out-File -FilePath $env:GITHUB_ENV -Append
           }
 
-      - name: Publish
+      - name: Publish application
         shell: pwsh
         run: .\scripts\publish-win-x64.ps1
 
-      - name: Build Windows installer
+      - name: Build installer
         shell: pwsh
         run: .\scripts\build-installer.ps1
 
-      - name: Zip portable release
+      - name: Rename installer for release
         shell: pwsh
-        run: Compress-Archive -Path .\artifacts\win-x64\* -DestinationPath ".\HiMate-Agent-$env:HIMATE_VERSION-Portable-win-x64.zip"
+        run: |
+          $version = $env:HIMATE_VERSION.TrimStart('v')
+          Copy-Item ".\artifacts\installer\HiMate-Agent-Setup.exe" ".\HiMate-Agent-Setup-$version.exe"
 
       - name: Create GitHub Release
         shell: pwsh
@@ -51,9 +53,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = $env:HIMATE_VERSION
+          $version = $tag.TrimStart('v')
           gh release create "$tag" `
-            ".\artifacts\installer\HiMate-Agent-Setup.exe" `
-            ".\HiMate-Agent-$tag-Portable-win-x64.zip" `
+            ".\HiMate-Agent-Setup-$version.exe" `
             --target "${{ github.sha }}" `
             --title "HiMate Agent $tag" `
             --generate-notes
