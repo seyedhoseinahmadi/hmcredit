@@ -4,8 +4,12 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <AssemblyName>HiMate.Agent</AssemblyName>
+    <AssemblyName>HiMate.Credit</AssemblyName>
     <RootNamespace>HiMate.Agent</RootNamespace>
+    <Title>HiMate Credit</Title>
+    <Product>HiMate Credit</Product>
+    <Description>HiMate Credit Windows application</Description>
+    <Company>HiMate</Company>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Version>0.1.0</Version>
     <FileVersion>0.1.0.0</FileVersion>
