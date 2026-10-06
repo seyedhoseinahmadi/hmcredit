@@ -1,4 +1,5 @@
 using System.IO.Ports;
+using Microsoft.Win32;
 
 namespace HiMate.Agent.Services;
 
@@ -16,7 +17,60 @@ public sealed class SerialDeviceService : IDisposable
         _log = log;
     }
 
-    public static string[] GetPorts() => SerialPort.GetPortNames().OrderBy(x => x).ToArray();
+    public static string[] GetPorts()
+    {
+        var ports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            foreach (var port in SerialPort.GetPortNames())
+            {
+                if (!string.IsNullOrWhiteSpace(port))
+                {
+                    ports.Add(port.Trim());
+                }
+            }
+        }
+        catch
+        {
+            // Fall back to the Windows registry below.
+        }
+
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DEVICEMAP\SERIALCOMM");
+            if (key is not null)
+            {
+                foreach (var valueName in key.GetValueNames())
+                {
+                    if (key.GetValue(valueName) is string port && !string.IsNullOrWhiteSpace(port))
+                    {
+                        ports.Add(port.Trim());
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Some environments restrict registry access. SerialPort enumeration is still used.
+        }
+
+        return ports
+            .OrderBy(PortSortKey)
+            .ThenBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static int PortSortKey(string port)
+    {
+        if (port.StartsWith("COM", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(port.AsSpan(3), out var number))
+        {
+            return number;
+        }
+
+        return int.MaxValue;
+    }
 
     public void Connect(string portName, int baudRate = 115200)
     {
