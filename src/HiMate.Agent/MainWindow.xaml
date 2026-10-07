@@ -406,7 +406,7 @@
             <Border Style="{StaticResource Card}">
               <StackPanel>
                 <TextBlock Text="نسخه" Foreground="{StaticResource Muted}" />
-                <TextBlock Text="0.2.1" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
+                <TextBlock Text="0.2.2" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
               </StackPanel>
             </Border>
           </UniformGrid>
@@ -419,7 +419,7 @@
     <Border Grid.Row="2" Background="{StaticResource Header}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
       <Grid Margin="14,0">
         <TextBlock x:Name="BottomDeviceText" Text="دستگاه متصل نیست" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right" />
-        <TextBlock Text="نسخه 0.2.1" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
+        <TextBlock Text="نسخه 0.2.2" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
       </Grid>
     </Border>
   </Grid>
