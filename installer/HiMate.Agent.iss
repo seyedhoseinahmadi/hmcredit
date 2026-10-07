@@ -22,7 +22,8 @@ OutputBaseFilename=HiMate-Credit-Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-SetupLogging=yes\nSetupIconFile=..\\src\\HiMate.Agent\\HiMate.ico
+SetupLogging=yes
+SetupIconFile=..\src\HiMate.Agent\HiMate.ico
 CloseApplications=yes
 RestartApplications=no
 UsePreviousAppDir=yes
