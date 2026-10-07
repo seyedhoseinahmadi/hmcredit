@@ -165,34 +165,114 @@
             <Border Style="{StaticResource Card}" Margin="0,0,0,16">
               <StackPanel>
                 <TextBlock Style="{StaticResource SectionTitle}" Text="ثبت کارت برای مشتری" />
-                <TextBlock Text="۱) کارت را بدون کسر اعتبار بخوانید." Foreground="{StaticResource Muted}" Margin="0,0,0,8" />
-                <Grid Margin="0,0,0,10">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="190" />
-                  </Grid.ColumnDefinitions>
-                  <TextBox x:Name="AssignCardUidBox" Grid.Column="0" IsReadOnly="True" Text="" FlowDirection="LeftToRight" TextAlignment="Left" Margin="0,0,8,0" />
-                  <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="خواندن کارت بدون برداشت" Click="ReadCardForAssign_Click" />
-                </Grid>
-                <TextBlock x:Name="CardOwnerText" Text="مالک فعلی: -" Foreground="{StaticResource Muted}" Margin="0,0,0,16" />
+                <TextBlock Text="مراحل را به ترتیب انجام دهید؛ تا کارت خوانده نشود انتخاب مشتری فعال نمی‌شود."
+                           Foreground="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap" />
 
-                <TextBlock Text="۲) مشتری را با نام، موبایل، ایمیل یا شناسه جستجو کنید." Foreground="{StaticResource Muted}" Margin="0,0,0,8" />
-                <Grid Margin="0,0,0,10">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="110" />
-                  </Grid.ColumnDefinitions>
-                  <TextBox x:Name="CustomerSearchBox" Grid.Column="0" FlowDirection="RightToLeft" Margin="0,0,8,0" />
-                  <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="جستجو" Click="SearchCustomers_Click" />
-                </Grid>
+                <UniformGrid Columns="3" Margin="0,0,0,18">
+                  <Border x:Name="RegistrationStep1Badge" Background="{StaticResource Panel}" BorderBrush="{StaticResource Accent}" BorderThickness="1" Padding="10" Margin="0,0,6,0">
+                    <StackPanel>
+                      <TextBlock Text="۱. خواندن کارت" FontWeight="Bold" />
+                      <TextBlock x:Name="RegistrationStep1Text" Text="آماده شروع" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0" />
+                    </StackPanel>
+                  </Border>
+                  <Border x:Name="RegistrationStep2Badge" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="10" Margin="0,0,6,0">
+                    <StackPanel>
+                      <TextBlock Text="۲. انتخاب مشتری" FontWeight="Bold" />
+                      <TextBlock x:Name="RegistrationStep2Text" Text="منتظر کارت" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0" />
+                    </StackPanel>
+                  </Border>
+                  <Border x:Name="RegistrationStep3Badge" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="10">
+                    <StackPanel>
+                      <TextBlock Text="۳. تأیید ثبت" FontWeight="Bold" />
+                      <TextBlock x:Name="RegistrationStep3Text" Text="منتظر انتخاب مشتری" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,4,0,0" />
+                    </StackPanel>
+                  </Border>
+                </UniformGrid>
 
-                <ComboBox x:Name="CustomerResultsBox" DisplayMemberPath="DisplayLabel" MinHeight="38" Margin="0,0,0,14" />
+                <Border x:Name="RegistrationReadPanel" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14" Margin="0,0,0,12">
+                  <StackPanel>
+                    <TextBlock Text="مرحله ۱ — کارت را بخوانید" FontWeight="Bold" Margin="0,0,0,8" />
+                    <TextBlock x:Name="RegistrationStateText"
+                               Text="برای شروع، دکمه زیر را بزنید. دستگاه وارد حالت خواندن بدون برداشت می‌شود."
+                               Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                    <WrapPanel>
+                      <Button x:Name="StartRegistrationButton" Style="{StaticResource PrimaryButton}"
+                              Content="شروع ثبت کارت" Click="StartCardRegistration_Click" Width="170" Margin="0,0,8,0" />
+                      <Button x:Name="CancelRegistrationButton" Style="{StaticResource SecondaryButton}"
+                              Content="لغو" Click="CancelCardRegistration_Click" Width="90" IsEnabled="False" />
+                    </WrapPanel>
+                    <Grid Margin="0,14,0,0">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Text="UID کارت" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                      <TextBox x:Name="AssignCardUidBox" Grid.Column="1" IsReadOnly="True" Text=""
+                               FlowDirection="LeftToRight" TextAlignment="Left" />
+                    </Grid>
+                    <TextBlock x:Name="CardOwnerText" Text="مالک فعلی: -" Foreground="{StaticResource Muted}" Margin="0,8,0,0" />
+                  </StackPanel>
+                </Border>
 
-                <WrapPanel>
-                  <Button Style="{StaticResource PrimaryButton}" Content="ثبت کارت برای مشتری" Click="AssignCard_Click" Width="190" Margin="0,0,8,0" />
-                  <Button Style="{StaticResource SecondaryButton}" Content="قطع اتصال کارت" Click="UnassignCard_Click" Width="150" />
-                </WrapPanel>
-                <TextBlock x:Name="AssignmentFeedbackText" Text="" Foreground="{StaticResource Accent}" Margin="0,12,0,0" TextWrapping="Wrap" />
+                <Border x:Name="RegistrationCustomerPanel" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14" Margin="0,0,0,12" IsEnabled="False" Opacity="0.55">
+                  <StackPanel>
+                    <TextBlock Text="مرحله ۲ — مشتری را انتخاب کنید" FontWeight="Bold" Margin="0,0,0,8" />
+                    <TextBlock Text="از لیست انتخاب کنید یا با نام، موبایل، ایمیل یا شناسه جستجو کنید."
+                               Foreground="{StaticResource Muted}" Margin="0,0,0,10" />
+                    <Grid Margin="0,0,0,10">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="110" />
+                      </Grid.ColumnDefinitions>
+                      <TextBox x:Name="CustomerSearchBox" Grid.Column="0" FlowDirection="RightToLeft" Margin="0,0,8,0" />
+                      <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="جستجو" Click="SearchCustomers_Click" />
+                    </Grid>
+
+                    <ComboBox x:Name="CustomerResultsBox"
+                              DisplayMemberPath="DisplayLabel"
+                              MinHeight="38"
+                              Margin="0,0,0,8"
+                              Foreground="{StaticResource Text}"
+                              Background="{StaticResource Panel}"
+                              SelectionChanged="CustomerResultsBox_SelectionChanged">
+                      <ComboBox.ItemContainerStyle>
+                        <Style TargetType="ComboBoxItem">
+                          <Setter Property="Foreground" Value="{StaticResource Text}" />
+                          <Setter Property="Background" Value="{StaticResource Panel}" />
+                          <Setter Property="Padding" Value="10,8" />
+                          <Style.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                              <Setter Property="Background" Value="{StaticResource Line}" />
+                              <Setter Property="Foreground" Value="{StaticResource Text}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                              <Setter Property="Background" Value="{StaticResource Accent}" />
+                              <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                          </Style.Triggers>
+                        </Style>
+                      </ComboBox.ItemContainerStyle>
+                    </ComboBox>
+                    <TextBlock x:Name="CustomerSelectionText" Text="هنوز مشتری انتخاب نشده است." Foreground="{StaticResource Muted}" />
+                  </StackPanel>
+                </Border>
+
+                <Border x:Name="RegistrationConfirmPanel" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14" IsEnabled="False" Opacity="0.55">
+                  <StackPanel>
+                    <TextBlock Text="مرحله ۳ — تأیید نهایی" FontWeight="Bold" Margin="0,0,0,8" />
+                    <TextBlock x:Name="RegistrationSummaryText" Text="پس از انتخاب مشتری، خلاصه ثبت اینجا نمایش داده می‌شود."
+                               Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                    <WrapPanel>
+                      <Button x:Name="ConfirmRegistrationButton" Style="{StaticResource PrimaryButton}"
+                              Content="تأیید و ثبت کارت" Click="AssignCard_Click" Width="170" IsEnabled="False" Margin="0,0,8,0" />
+                      <Button x:Name="UnassignRegistrationButton" Style="{StaticResource SecondaryButton}"
+                              Content="قطع مالکیت فعلی" Click="UnassignCard_Click" Width="150" IsEnabled="False" />
+                    </WrapPanel>
+                  </StackPanel>
+                </Border>
+
+                <TextBlock x:Name="AssignmentFeedbackText" Text="" Foreground="{StaticResource Accent}"
+                           Margin="0,12,0,0" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
 
@@ -440,7 +520,7 @@
             <Border Style="{StaticResource Card}">
               <StackPanel>
                 <TextBlock Text="نسخه" Foreground="{StaticResource Muted}" />
-                <TextBlock Text="0.2.4" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
+                <TextBlock Text="0.2.5" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
               </StackPanel>
             </Border>
           </UniformGrid>
@@ -453,7 +533,7 @@
     <Border Grid.Row="2" Background="{StaticResource Header}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
       <Grid Margin="14,0">
         <TextBlock x:Name="BottomDeviceText" Text="دستگاه متصل نیست" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right" />
-        <TextBlock Text="نسخه 0.2.4" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
+        <TextBlock Text="نسخه 0.2.5" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
       </Grid>
     </Border>
   </Grid>

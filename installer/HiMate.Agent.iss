@@ -2,7 +2,7 @@
 #define MyAppPublisher "HiMate"
 #define MyAppExeName "HiMate.Credit.exe"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.2.4"
+  #define MyAppVersion "0.2.5"
 #endif
 
 [Setup]
@@ -23,6 +23,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 SetupLogging=yes
+SetupIconFile=..\src\HiMate.Agent\HiMate.ico
 CloseApplications=yes
 RestartApplications=no
 UsePreviousAppDir=yes
