@@ -6,7 +6,7 @@ on:
       version:
         description: 'Release version (example: v0.1.0)'
         required: true
-        default: 'v0.2.1'
+        default: 'v0.2.2'
   push:
     tags:
       - 'v*'
@@ -36,6 +36,10 @@ jobs:
       - name: Publish application
         shell: pwsh
         run: .\scripts\publish-win-x64.ps1
+
+      - name: Stage official signed CP210x driver
+        shell: pwsh
+        run: .\scripts\stage-cp210x-driver.ps1
 
       - name: Build installer
         shell: pwsh
