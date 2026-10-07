@@ -5,14 +5,33 @@ $driverRoot = Join-Path $root 'artifacts\drivers\cp210x'
 $downloadDir = Join-Path $env:RUNNER_TEMP 'himate-cp210x-download'
 $archive = Join-Path $downloadDir 'CP210x_Universal_Windows_Driver.zip'
 $extracted = Join-Path $downloadDir 'extracted'
-$url = 'https://www.silabs.com/documents/public/software/CP210x_Universal_Windows_Driver.zip'
+$urls = @(
+    'https://www.silabs.com/documents/public/software/CP210x_Universal_Windows_Driver.zip',
+    'https://dl.espressif.com/dl/idf-installer/CP210x_Universal_Windows_Driver.zip'
+)
 
 Remove-Item -Recurse -Force $driverRoot -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force $downloadDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $driverRoot, $downloadDir, $extracted | Out-Null
 
-Write-Host "Downloading CP210x VCP driver from Silicon Labs official website..."
-Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRedirection 5 -TimeoutSec 120
+$downloaded = $false
+foreach ($url in $urls) {
+    try {
+        Write-Host "Downloading CP210x VCP driver from: $url"
+        Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRedirection 5 -TimeoutSec 120
+        $downloaded = $true
+        Write-Host "Driver source: $url"
+        break
+    }
+    catch {
+        Write-Warning "Download blocked/unavailable from $url : $($_.Exception.Message)"
+        Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+    }
+}
+
+if (-not $downloaded) {
+    throw "CP210x driver download failed from Silicon Labs and official Espressif driver mirror."
+}
 
 if (-not (Test-Path $archive) -or (Get-Item $archive).Length -lt 10000) {
     throw 'CP210x driver archive download is missing or unexpectedly small.'
