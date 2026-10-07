@@ -18,7 +18,9 @@ public sealed class SyncService
 
     public async Task<int> SyncOnceAsync(CancellationToken ct = default)
     {
-        if (!await _gate.WaitAsync(0, ct)) return 0;
+        // Never silently drop an immediate wake-up while another sync is running.
+        // Serialize uploads so retries and event-triggered sends cannot race.
+        await _gate.WaitAsync(ct);
         try
         {
             var pending = await _store.GetPendingAsync(100);

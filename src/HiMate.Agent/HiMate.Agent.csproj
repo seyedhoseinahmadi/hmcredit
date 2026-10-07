@@ -11,9 +11,9 @@
     <Description>HiMate Credit Windows application</Description>
     <Company>HiMate</Company>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.2.2</Version>
-    <FileVersion>0.2.2.0</FileVersion>
-    <AssemblyVersion>0.2.2.0</AssemblyVersion>
+    <Version>0.2.3</Version>
+    <FileVersion>0.2.3.0</FileVersion>
+    <AssemblyVersion>0.2.3.0</AssemblyVersion>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
