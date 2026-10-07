@@ -148,7 +148,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}">
           <StackPanel Margin="28,24,28,30">
             <TextBlock Style="{StaticResource PageTitle}" Text="کارت" />
-            <TextBlock Style="{StaticResource MutedText}" Text="بررسی کارت و آخرین اطلاعات دریافت‌شده از دستگاه" Margin="0,0,0,18" />
+            <TextBlock Style="{StaticResource MutedText}" Text="خواندن کارت بدون برداشت، مشاهده مالک و اتصال کارت به مشتری" Margin="0,0,0,18" />
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,16">
               <StackPanel>
@@ -159,6 +159,40 @@
                   <Button Style="{StaticResource SecondaryButton}" Content="خواندن موجودی" Click="Balance_Click" Margin="0,0,8,0" />
                   <Button Style="{StaticResource SecondaryButton}" Content="وضعیت دستگاه" Click="Status_Click" />
                 </WrapPanel>
+              </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Style="{StaticResource SectionTitle}" Text="ثبت کارت برای مشتری" />
+                <TextBlock Text="۱) کارت را بدون کسر اعتبار بخوانید." Foreground="{StaticResource Muted}" Margin="0,0,0,8" />
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="190" />
+                  </Grid.ColumnDefinitions>
+                  <TextBox x:Name="AssignCardUidBox" Grid.Column="0" IsReadOnly="True" Text="" FlowDirection="LeftToRight" TextAlignment="Left" Margin="0,0,8,0" />
+                  <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="خواندن کارت بدون برداشت" Click="ReadCardForAssign_Click" />
+                </Grid>
+                <TextBlock x:Name="CardOwnerText" Text="مالک فعلی: -" Foreground="{StaticResource Muted}" Margin="0,0,0,16" />
+
+                <TextBlock Text="۲) مشتری را با نام، موبایل، ایمیل یا شناسه جستجو کنید." Foreground="{StaticResource Muted}" Margin="0,0,0,8" />
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="110" />
+                  </Grid.ColumnDefinitions>
+                  <TextBox x:Name="CustomerSearchBox" Grid.Column="0" FlowDirection="RightToLeft" Margin="0,0,8,0" />
+                  <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="جستجو" Click="SearchCustomers_Click" />
+                </Grid>
+
+                <ComboBox x:Name="CustomerResultsBox" DisplayMemberPath="DisplayLabel" MinHeight="38" Margin="0,0,0,14" />
+
+                <WrapPanel>
+                  <Button Style="{StaticResource PrimaryButton}" Content="ثبت کارت برای مشتری" Click="AssignCard_Click" Width="190" Margin="0,0,8,0" />
+                  <Button Style="{StaticResource SecondaryButton}" Content="قطع اتصال کارت" Click="UnassignCard_Click" Width="150" />
+                </WrapPanel>
+                <TextBlock x:Name="AssignmentFeedbackText" Text="" Foreground="{StaticResource Accent}" Margin="0,12,0,0" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
 
@@ -406,7 +440,7 @@
             <Border Style="{StaticResource Card}">
               <StackPanel>
                 <TextBlock Text="نسخه" Foreground="{StaticResource Muted}" />
-                <TextBlock Text="0.2.3" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
+                <TextBlock Text="0.2.4" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
               </StackPanel>
             </Border>
           </UniformGrid>
@@ -419,7 +453,7 @@
     <Border Grid.Row="2" Background="{StaticResource Header}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
       <Grid Margin="14,0">
         <TextBlock x:Name="BottomDeviceText" Text="دستگاه متصل نیست" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right" />
-        <TextBlock Text="نسخه 0.2.3" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
+        <TextBlock Text="نسخه 0.2.4" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
       </Grid>
     </Border>
   </Grid>

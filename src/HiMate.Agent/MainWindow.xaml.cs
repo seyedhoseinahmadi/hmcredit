@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private readonly SemaphoreSlim _realtimeSyncSignal = new(0, 1);
     private readonly ObservableCollection<CardEvent> _events = [];
     private readonly ObservableCollection<ServerCommand> _commands = [];
+    private readonly ObservableCollection<UserSummary> _userResults = [];
 
     private string _serverVersion = "-";
     private DateTime? _lastSyncAt;
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
             LogsList.ItemsSource = _log.Items;
             EventsGrid.ItemsSource = _events;
             CommandsGrid.ItemsSource = _commands;
+            CustomerResultsBox.ItemsSource = _userResults;
 
             LoadSettingsIntoUi();
             RefreshPorts();
@@ -241,6 +243,17 @@ public partial class MainWindow : Window
                 CurrentDebitText.Text = $"مقدار فعلی دستگاه: {match.Groups[1].Value}";
                 CurrentDebitText.Foreground = Brush("Muted");
             }
+        }
+
+        // STATUS/BALANCE prints a dedicated UID line and never deducts credit.
+        var uidMatch = Regex.Match(line, @"^\s*UID\s*:\s*([0-9A-Fa-f:\- ]+)\s*$", RegexOptions.IgnoreCase);
+        if (uidMatch.Success)
+        {
+            var uid = uidMatch.Groups[1].Value.Trim().ToUpperInvariant();
+            AssignCardUidBox.Text = uid;
+            AssignmentFeedbackText.Text = "UID کارت خوانده شد؛ در حال بررسی مالک روی سرور...";
+            AssignmentFeedbackText.Foreground = Brush("Accent");
+            _ = LookupCardOwnerAsync(uid);
         }
     }
 
@@ -748,6 +761,183 @@ public partial class MainWindow : Window
         {
             _log.Warn(ex.Message);
             LatestDeviceResponseText.Text = ex.Message;
+        }
+    }
+
+    private async Task LookupCardOwnerAsync(string uid)
+    {
+        try
+        {
+            ConfigureApiFromSettings();
+            if (!HasServerSettings())
+            {
+                CardOwnerText.Text = "مالک فعلی: سرور تنظیم نشده";
+                return;
+            }
+
+            await _api.PingAsync();
+            var response = await _api.GetCardAsync(uid);
+            if (!response.Found || response.Card is null)
+            {
+                CardOwnerText.Text = "مالک فعلی: ثبت نشده";
+                AssignmentFeedbackText.Text = "این UID هنوز به مشتری متصل نشده است.";
+                AssignmentFeedbackText.Foreground = Brush("Warn");
+                return;
+            }
+
+            var owner = response.Card.Owner;
+            CardOwnerText.Text = owner is null
+                ? $"مالک فعلی: بدون مالک — مانده {response.Card.Remaining}"
+                : $"مالک فعلی: {owner.Name} — {owner.Phone} — مانده {response.Card.Remaining}";
+            AssignmentFeedbackText.Text = owner is null ? "کارت در سرور شناخته شده ولی بدون مالک است." : "اطلاعات مالک کارت از سرور دریافت شد.";
+            AssignmentFeedbackText.Foreground = owner is null ? Brush("Warn") : Brush("Good");
+        }
+        catch (Exception ex)
+        {
+            CardOwnerText.Text = "مالک فعلی: خطا در دریافت";
+            AssignmentFeedbackText.Text = ex.Message;
+            AssignmentFeedbackText.Foreground = Brush("Bad");
+            _log.Warn($"Card lookup failed: {ex.Message}");
+        }
+    }
+
+    private void ReadCardForAssign_Click(object sender, RoutedEventArgs e)
+    {
+        AssignCardUidBox.Text = "";
+        CardOwnerText.Text = "مالک فعلی: -";
+        AssignmentFeedbackText.Text = "کارت را روی دستگاه قرار دهید؛ این عملیات اعتبار کم نمی‌کند.";
+        AssignmentFeedbackText.Foreground = Brush("Accent");
+        SendDevice("STATUS");
+    }
+
+    private async void SearchCustomers_Click(object sender, RoutedEventArgs e)
+    {
+        var q = CustomerSearchBox.Text.Trim();
+        if (q.Length < 2)
+        {
+            AssignmentFeedbackText.Text = "حداقل ۲ کاراکتر برای جستجوی مشتری وارد کنید.";
+            AssignmentFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        try
+        {
+            ConfigureApiFromSettings();
+            if (!HasServerSettings()) throw new InvalidOperationException("تنظیمات سرور کامل نیست.");
+
+            await _api.PingAsync();
+            var response = await _api.SearchUsersAsync(q);
+            _userResults.Clear();
+            foreach (var user in response.Users) _userResults.Add(user);
+            if (_userResults.Count > 0) CustomerResultsBox.SelectedIndex = 0;
+
+            AssignmentFeedbackText.Text = _userResults.Count == 0
+                ? "مشتری مطابق جستجو پیدا نشد."
+                : $"{_userResults.Count} مشتری پیدا شد.";
+            AssignmentFeedbackText.Foreground = _userResults.Count == 0 ? Brush("Warn") : Brush("Good");
+        }
+        catch (Exception ex)
+        {
+            AssignmentFeedbackText.Text = ex.Message;
+            AssignmentFeedbackText.Foreground = Brush("Bad");
+            _log.Warn($"User search failed: {ex.Message}");
+        }
+    }
+
+    private async void AssignCard_Click(object sender, RoutedEventArgs e)
+    {
+        var uid = AssignCardUidBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(uid))
+        {
+            AssignmentFeedbackText.Text = "ابتدا کارت را با دکمه «خواندن کارت بدون برداشت» بخوانید.";
+            AssignmentFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        if (CustomerResultsBox.SelectedItem is not UserSummary user)
+        {
+            AssignmentFeedbackText.Text = "ابتدا مشتری را جستجو و انتخاب کنید.";
+            AssignmentFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        try
+        {
+            ConfigureApiFromSettings();
+            if (!HasServerSettings()) throw new InvalidOperationException("تنظیمات سرور کامل نیست.");
+
+            await _api.PingAsync();
+            var lookup = await _api.GetCardAsync(uid);
+            var force = false;
+
+            if (lookup.Found && lookup.Card?.Owner is not null && lookup.Card.Owner.Id != user.Id)
+            {
+                var old = lookup.Card.Owner;
+                var answer = MessageBox.Show(
+                    $"این کارت اکنون متعلق به «{old.Name}» است.\n\nکارت از مالک قبلی جدا و به «{user.Name}» منتقل شود؟",
+                    "تغییر مالک کارت",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (answer != MessageBoxResult.Yes)
+                {
+                    AssignmentFeedbackText.Text = "تغییر مالک لغو شد.";
+                    AssignmentFeedbackText.Foreground = Brush("Warn");
+                    return;
+                }
+                force = true;
+            }
+
+            var result = await _api.AssignCardAsync(uid, user.Id, force);
+            if (!result.Success || result.Card is null) throw new InvalidOperationException("سرور ثبت کارت را تأیید نکرد.");
+
+            CardOwnerText.Text = $"مالک فعلی: {user.Name} — {user.Phone} — مانده {result.Card.Remaining}";
+            AssignmentFeedbackText.Text = $"کارت {result.Card.Uid} با موفقیت برای {user.Name} ثبت شد.";
+            AssignmentFeedbackText.Foreground = Brush("Good");
+            _log.Info($"Card assigned: UID={result.Card.Uid} USER={user.Id}");
+        }
+        catch (Exception ex)
+        {
+            AssignmentFeedbackText.Text = ex.Message;
+            AssignmentFeedbackText.Foreground = Brush("Bad");
+            _log.Error($"Card assignment failed: {ex.Message}");
+        }
+    }
+
+    private async void UnassignCard_Click(object sender, RoutedEventArgs e)
+    {
+        var uid = AssignCardUidBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(uid))
+        {
+            AssignmentFeedbackText.Text = "ابتدا کارت را بخوانید.";
+            AssignmentFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        if (MessageBox.Show("اتصال این کارت به مشتری قطع شود؟ خود اعتبار فیزیکی کارت پاک نمی‌شود.",
+                "قطع اتصال کارت", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            ConfigureApiFromSettings();
+            if (!HasServerSettings()) throw new InvalidOperationException("تنظیمات سرور کامل نیست.");
+            await _api.PingAsync();
+            var result = await _api.UnassignCardAsync(uid);
+            if (!result.Success) throw new InvalidOperationException("سرور قطع اتصال را تأیید نکرد.");
+
+            CardOwnerText.Text = "مالک فعلی: بدون مالک";
+            AssignmentFeedbackText.Text = "اتصال کارت به مشتری قطع شد؛ اعتبار روی خود کارت تغییری نکرد.";
+            AssignmentFeedbackText.Foreground = Brush("Good");
+            _log.Info($"Card unassigned: UID={uid}");
+        }
+        catch (Exception ex)
+        {
+            AssignmentFeedbackText.Text = ex.Message;
+            AssignmentFeedbackText.Foreground = Brush("Bad");
+            _log.Error($"Card unassign failed: {ex.Message}");
         }
     }
 

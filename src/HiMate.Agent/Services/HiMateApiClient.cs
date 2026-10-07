@@ -23,7 +23,7 @@ public sealed class HiMateApiClient
     public HiMateApiClient()
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HiMate-Credit/0.2.3");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HiMate-Credit/0.2.4");
     }
 
     public async Task<PingResponse> PingAsync(CancellationToken ct = default)
@@ -81,6 +81,58 @@ public sealed class HiMateApiClient
             throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
         }
         return JsonSerializer.Deserialize<CommandsResponse>(body, _json) ?? throw new InvalidOperationException("Invalid commands response.");
+    }
+
+    public async Task<UserSearchResponse> SearchUsersAsync(string search, CancellationToken ct = default)
+    {
+        var path = "/wp-json/himate/v1/users?search=" + Uri.EscapeDataString(search.Trim());
+        using var req = CreateSignedRequest(HttpMethod.Get, path, "");
+        using var response = await _http.SendAsync(req, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
+        }
+        return JsonSerializer.Deserialize<UserSearchResponse>(body, _json) ?? throw new InvalidOperationException("Invalid users response.");
+    }
+
+    public async Task<CardLookupResponse> GetCardAsync(string uid, CancellationToken ct = default)
+    {
+        var path = "/wp-json/himate/v1/cards/" + Uri.EscapeDataString(uid.Trim());
+        using var req = CreateSignedRequest(HttpMethod.Get, path, "");
+        using var response = await _http.SendAsync(req, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
+        }
+        return JsonSerializer.Deserialize<CardLookupResponse>(body, _json) ?? throw new InvalidOperationException("Invalid card response.");
+    }
+
+    public async Task<CardAssignResponse> AssignCardAsync(string uid, long userId, bool force = false, CancellationToken ct = default)
+    {
+        var raw = JsonSerializer.Serialize(new { uid, user_id = userId, force }, _json);
+        using var req = CreateSignedRequest(HttpMethod.Post, "/wp-json/himate/v1/cards/assign", raw);
+        using var response = await _http.SendAsync(req, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
+        }
+        return JsonSerializer.Deserialize<CardAssignResponse>(body, _json) ?? throw new InvalidOperationException("Invalid card assignment response.");
+    }
+
+    public async Task<CardAssignResponse> UnassignCardAsync(string uid, CancellationToken ct = default)
+    {
+        var raw = JsonSerializer.Serialize(new { uid }, _json);
+        using var req = CreateSignedRequest(HttpMethod.Post, "/wp-json/himate/v1/cards/unassign", raw);
+        using var response = await _http.SendAsync(req, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
+        }
+        return JsonSerializer.Deserialize<CardAssignResponse>(body, _json) ?? throw new InvalidOperationException("Invalid card unassign response.");
     }
 
     public async Task MarkCommandStatusAsync(long commandId, string status, string? reason = null, CancellationToken ct = default)

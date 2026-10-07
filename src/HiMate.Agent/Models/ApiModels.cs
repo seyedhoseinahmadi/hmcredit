@@ -89,3 +89,100 @@ public sealed class CommandsResponse
     [JsonPropertyName("server_time")]
     public string ServerTime { get; set; } = "";
 }
+
+public sealed class UserSearchResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("users")]
+    public List<UserSummary> Users { get; set; } = [];
+}
+
+public sealed class UserSummary
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("phone")]
+    public string Phone { get; set; } = "";
+
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = "";
+
+    [JsonIgnore]
+    public string DisplayLabel => string.IsNullOrWhiteSpace(Phone) ? $"{Name} (#{Id})" : $"{Name} — {Phone}";
+}
+
+public sealed class CardOwnerInfo
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("phone")]
+    public string Phone { get; set; } = "";
+}
+
+public sealed class CardInfo
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("uid")]
+    public string Uid { get; set; } = "";
+
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "";
+
+    [JsonPropertyName("user_id")]
+    public long? UserId { get; set; }
+
+    [JsonPropertyName("owner")]
+    public CardOwnerInfo? Owner { get; set; }
+
+    [JsonPropertyName("total")]
+    public int Total { get; set; }
+
+    [JsonPropertyName("remaining")]
+    public int Remaining { get; set; }
+
+    [JsonPropertyName("tx")]
+    public int Tx { get; set; }
+
+    [JsonPropertyName("gen")]
+    public int Gen { get; set; }
+
+    [JsonPropertyName("seq")]
+    public int Seq { get; set; }
+}
+
+public sealed class CardLookupResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("found")]
+    public bool Found { get; set; }
+
+    [JsonPropertyName("uid")]
+    public string Uid { get; set; } = "";
+
+    [JsonPropertyName("card")]
+    public CardInfo? Card { get; set; }
+}
+
+public sealed class CardAssignResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("card")]
+    public CardInfo? Card { get; set; }
+}
+
