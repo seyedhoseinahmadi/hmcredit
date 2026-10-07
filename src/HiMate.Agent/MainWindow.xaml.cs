@@ -29,6 +29,19 @@ public partial class MainWindow : Window
     private string _serverVersion = "-";
     private DateTime? _lastSyncAt;
 
+    private enum CardRegistrationStage
+    {
+        Idle,
+        WaitingForCard,
+        SelectingCustomer,
+        ReadyToConfirm,
+        Completed
+    }
+
+    private CardRegistrationStage _cardRegistrationStage = CardRegistrationStage.Idle;
+    private CardOwnerInfo? _registrationExistingOwner;
+    private int _registrationAttempt;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -54,6 +67,7 @@ public partial class MainWindow : Window
             EventsGrid.ItemsSource = _events;
             CommandsGrid.ItemsSource = _commands;
             CustomerResultsBox.ItemsSource = _userResults;
+            ResetCardRegistrationUi();
 
             LoadSettingsIntoUi();
             RefreshPorts();
@@ -245,15 +259,13 @@ public partial class MainWindow : Window
             }
         }
 
-        // STATUS/BALANCE prints a dedicated UID line and never deducts credit.
+        // STATUS prints a dedicated UID line and never deducts credit.
+        // Only capture it for registration while the wizard is explicitly waiting.
         var uidMatch = Regex.Match(line, @"^\s*UID\s*:\s*([0-9A-Fa-f:\- ]+)\s*$", RegexOptions.IgnoreCase);
-        if (uidMatch.Success)
+        if (uidMatch.Success && _cardRegistrationStage == CardRegistrationStage.WaitingForCard)
         {
             var uid = uidMatch.Groups[1].Value.Trim().ToUpperInvariant();
-            AssignCardUidBox.Text = uid;
-            AssignmentFeedbackText.Text = "UID کارت خوانده شد؛ در حال بررسی مالک روی سرور...";
-            AssignmentFeedbackText.Foreground = Brush("Accent");
-            _ = LookupCardOwnerAsync(uid);
+            _ = CompleteCardReadAsync(uid);
         }
     }
 
@@ -764,58 +776,255 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task LookupCardOwnerAsync(string uid)
+    private void ResetCardRegistrationUi()
     {
+        _registrationAttempt++;
+        _cardRegistrationStage = CardRegistrationStage.Idle;
+        _registrationExistingOwner = null;
+
+        AssignCardUidBox.Text = "";
+        CardOwnerText.Text = "مالک فعلی: -";
+        CustomerSearchBox.Text = "";
+        CustomerResultsBox.SelectedItem = null;
+        _userResults.Clear();
+
+        RegistrationStep1Badge.BorderBrush = Brush("Accent");
+        RegistrationStep2Badge.BorderBrush = Brush("Line");
+        RegistrationStep3Badge.BorderBrush = Brush("Line");
+        RegistrationStep1Text.Text = "آماده شروع";
+        RegistrationStep2Text.Text = "منتظر کارت";
+        RegistrationStep3Text.Text = "منتظر انتخاب مشتری";
+
+        RegistrationStateText.Text = "برای شروع، دکمه زیر را بزنید. دستگاه وارد حالت خواندن بدون برداشت می‌شود.";
+        CustomerSelectionText.Text = "هنوز مشتری انتخاب نشده است.";
+        RegistrationSummaryText.Text = "پس از انتخاب مشتری، خلاصه ثبت اینجا نمایش داده می‌شود.";
+
+        RegistrationCustomerPanel.IsEnabled = false;
+        RegistrationCustomerPanel.Opacity = 0.55;
+        RegistrationConfirmPanel.IsEnabled = false;
+        RegistrationConfirmPanel.Opacity = 0.55;
+
+        StartRegistrationButton.IsEnabled = true;
+        StartRegistrationButton.Content = "شروع ثبت کارت";
+        CancelRegistrationButton.IsEnabled = false;
+        ConfirmRegistrationButton.IsEnabled = false;
+        UnassignRegistrationButton.IsEnabled = false;
+        AssignmentFeedbackText.Text = "";
+    }
+
+    private async void StartCardRegistration_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cardRegistrationStage == CardRegistrationStage.Completed)
+        {
+            ResetCardRegistrationUi();
+        }
+
+        if (_serial?.IsConnected != true)
+        {
+            AssignmentFeedbackText.Text = "دستگاه متصل نیست.";
+            AssignmentFeedbackText.Foreground = Brush("Bad");
+            return;
+        }
+
         try
         {
             ConfigureApiFromSettings();
             if (!HasServerSettings())
             {
-                CardOwnerText.Text = "مالک فعلی: سرور تنظیم نشده";
-                return;
+                throw new InvalidOperationException("ابتدا تنظیمات سرور را کامل کنید.");
             }
 
             await _api.PingAsync();
-            var response = await _api.GetCardAsync(uid);
-            if (!response.Found || response.Card is null)
-            {
-                CardOwnerText.Text = "مالک فعلی: ثبت نشده";
-                AssignmentFeedbackText.Text = "این UID هنوز به مشتری متصل نشده است.";
-                AssignmentFeedbackText.Foreground = Brush("Warn");
-                return;
-            }
 
-            var owner = response.Card.Owner;
-            CardOwnerText.Text = owner is null
-                ? $"مالک فعلی: بدون مالک — مانده {response.Card.Remaining}"
-                : $"مالک فعلی: {owner.Name} — {owner.Phone} — مانده {response.Card.Remaining}";
-            AssignmentFeedbackText.Text = owner is null ? "کارت در سرور شناخته شده ولی بدون مالک است." : "اطلاعات مالک کارت از سرور دریافت شد.";
-            AssignmentFeedbackText.Foreground = owner is null ? Brush("Warn") : Brush("Good");
+            _registrationAttempt++;
+            var attempt = _registrationAttempt;
+            _cardRegistrationStage = CardRegistrationStage.WaitingForCard;
+            _registrationExistingOwner = null;
+
+            AssignCardUidBox.Text = "";
+            CardOwnerText.Text = "مالک فعلی: -";
+            CustomerSearchBox.Text = "";
+            CustomerResultsBox.SelectedItem = null;
+            _userResults.Clear();
+
+            RegistrationStep1Badge.BorderBrush = Brush("Accent");
+            RegistrationStep2Badge.BorderBrush = Brush("Line");
+            RegistrationStep3Badge.BorderBrush = Brush("Line");
+            RegistrationStep1Text.Text = "منتظر کارت...";
+            RegistrationStep2Text.Text = "قفل";
+            RegistrationStep3Text.Text = "قفل";
+
+            RegistrationStateText.Text = "دستگاه در حالت بدون برداشت است. حالا کارت را روی دستگاه قرار دهید.";
+            RegistrationCustomerPanel.IsEnabled = false;
+            RegistrationCustomerPanel.Opacity = 0.55;
+            RegistrationConfirmPanel.IsEnabled = false;
+            RegistrationConfirmPanel.Opacity = 0.55;
+            StartRegistrationButton.IsEnabled = false;
+            CancelRegistrationButton.IsEnabled = true;
+            ConfirmRegistrationButton.IsEnabled = false;
+            UnassignRegistrationButton.IsEnabled = false;
+
+            AssignmentFeedbackText.Text = "منتظر خواندن کارت هستم؛ در این مرحله هیچ اعتباری کم نمی‌شود.";
+            AssignmentFeedbackText.Foreground = Brush("Accent");
+
+            _serial.Send("STATUS");
+            _ = CardRegistrationTimeoutAsync(attempt);
         }
         catch (Exception ex)
         {
-            CardOwnerText.Text = "مالک فعلی: خطا در دریافت";
             AssignmentFeedbackText.Text = ex.Message;
             AssignmentFeedbackText.Foreground = Brush("Bad");
-            _log.Warn($"Card lookup failed: {ex.Message}");
+            _log.Error($"Card registration start failed: {ex.Message}");
+            ResetCardRegistrationUi();
+            AssignmentFeedbackText.Text = ex.Message;
+            AssignmentFeedbackText.Foreground = Brush("Bad");
         }
     }
 
-    private void ReadCardForAssign_Click(object sender, RoutedEventArgs e)
+    private async Task CardRegistrationTimeoutAsync(int attempt)
     {
-        AssignCardUidBox.Text = "";
-        CardOwnerText.Text = "مالک فعلی: -";
-        AssignmentFeedbackText.Text = "کارت را روی دستگاه قرار دهید؛ این عملیات اعتبار کم نمی‌کند.";
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), _cts.Token);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (attempt != _registrationAttempt || _cardRegistrationStage != CardRegistrationStage.WaitingForCard)
+                {
+                    return;
+                }
+
+                try
+                {
+                    if (_serial?.IsConnected == true) _serial.Send("USE");
+                }
+                catch { }
+
+                ResetCardRegistrationUi();
+                AssignmentFeedbackText.Text = "زمان خواندن کارت تمام شد؛ دستگاه به حالت برداشت عادی برگشت.";
+                AssignmentFeedbackText.Foreground = Brush("Warn");
+            });
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void CancelCardRegistration_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_serial?.IsConnected == true) _serial.Send("USE");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Could not restore USE mode during registration cancel: {ex.Message}");
+        }
+
+        ResetCardRegistrationUi();
+        AssignmentFeedbackText.Text = "ثبت کارت لغو شد؛ دستگاه در حالت برداشت عادی است.";
+        AssignmentFeedbackText.Foreground = Brush("Muted");
+    }
+
+    private async Task CompleteCardReadAsync(string uid)
+    {
+        if (_cardRegistrationStage != CardRegistrationStage.WaitingForCard) return;
+
+        _registrationAttempt++;
+        _cardRegistrationStage = CardRegistrationStage.SelectingCustomer;
+        AssignCardUidBox.Text = uid;
+
+        RegistrationStep1Badge.BorderBrush = Brush("Good");
+        RegistrationStep1Text.Text = "کارت خوانده شد";
+        RegistrationStep2Badge.BorderBrush = Brush("Accent");
+        RegistrationStep2Text.Text = "انتخاب کنید";
+        RegistrationStep3Text.Text = "منتظر انتخاب مشتری";
+
+        RegistrationStateText.Text = $"کارت با UID {uid} بدون برداشت اعتبار خوانده شد.";
+        RegistrationCustomerPanel.IsEnabled = true;
+        RegistrationCustomerPanel.Opacity = 1.0;
+        CancelRegistrationButton.IsEnabled = true;
+        StartRegistrationButton.IsEnabled = false;
+
+        AssignmentFeedbackText.Text = "کارت خوانده شد؛ در حال دریافت مالک و لیست مشتری‌ها...";
         AssignmentFeedbackText.Foreground = Brush("Accent");
-        SendDevice("STATUS");
+
+        try
+        {
+            ConfigureApiFromSettings();
+            await _api.PingAsync();
+
+            var lookup = await _api.GetCardAsync(uid);
+            if (lookup.Found && lookup.Card is not null)
+            {
+                _registrationExistingOwner = lookup.Card.Owner;
+                if (lookup.Card.Owner is null)
+                {
+                    CardOwnerText.Text = $"مالک فعلی: بدون مالک — مانده {lookup.Card.Remaining}";
+                }
+                else
+                {
+                    CardOwnerText.Text = $"مالک فعلی: {lookup.Card.Owner.Name} — {lookup.Card.Owner.Phone} — مانده {lookup.Card.Remaining}";
+                    UnassignRegistrationButton.IsEnabled = true;
+                }
+            }
+            else
+            {
+                _registrationExistingOwner = null;
+                CardOwnerText.Text = "مالک فعلی: این UID هنوز در سرور ثبت نشده";
+            }
+
+            await LoadCustomersAsync("");
+            AssignmentFeedbackText.Text = _userResults.Count > 0
+                ? "کارت آماده است؛ مشتری را از لیست انتخاب کنید یا جستجو کنید."
+                : "کارت آماده است؛ برای پیدا کردن مشتری جستجو کنید.";
+            AssignmentFeedbackText.Foreground = Brush("Good");
+        }
+        catch (Exception ex)
+        {
+            AssignmentFeedbackText.Text = $"کارت خوانده شد، اما دریافت اطلاعات سرور خطا داد: {ex.Message}";
+            AssignmentFeedbackText.Foreground = Brush("Bad");
+            _log.Warn($"Card registration lookup failed: {ex.Message}");
+        }
+    }
+
+    private async Task LoadCustomersAsync(string search)
+    {
+        var response = await _api.SearchUsersAsync(search);
+        _userResults.Clear();
+        foreach (var user in response.Users) _userResults.Add(user);
+
+        CustomerResultsBox.SelectedItem = null;
+        CustomerSelectionText.Text = _userResults.Count == 0
+            ? "مشتری پیدا نشد."
+            : $"{_userResults.Count} مشتری در لیست است؛ یکی را انتخاب کنید.";
+
+        if (_cardRegistrationStage != CardRegistrationStage.Completed)
+        {
+            _cardRegistrationStage = CardRegistrationStage.SelectingCustomer;
+            RegistrationStep2Badge.BorderBrush = Brush("Accent");
+            RegistrationStep2Text.Text = "انتخاب کنید";
+            RegistrationStep3Badge.BorderBrush = Brush("Line");
+            RegistrationStep3Text.Text = "منتظر انتخاب مشتری";
+            RegistrationConfirmPanel.IsEnabled = false;
+            RegistrationConfirmPanel.Opacity = 0.55;
+            ConfirmRegistrationButton.IsEnabled = false;
+        }
     }
 
     private async void SearchCustomers_Click(object sender, RoutedEventArgs e)
     {
-        var q = CustomerSearchBox.Text.Trim();
-        if (q.Length < 2)
+        if (_cardRegistrationStage != CardRegistrationStage.SelectingCustomer &&
+            _cardRegistrationStage != CardRegistrationStage.ReadyToConfirm)
         {
-            AssignmentFeedbackText.Text = "حداقل ۲ کاراکتر برای جستجوی مشتری وارد کنید.";
+            AssignmentFeedbackText.Text = "ابتدا مرحله خواندن کارت را انجام دهید.";
+            AssignmentFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        var q = CustomerSearchBox.Text.Trim();
+        if (q.Length == 1)
+        {
+            AssignmentFeedbackText.Text = "برای جستجو حداقل ۲ کاراکتر وارد کنید؛ یا متن را خالی کنید تا لیست مشتری‌ها نمایش داده شود.";
             AssignmentFeedbackText.Foreground = Brush("Warn");
             return;
         }
@@ -826,14 +1035,11 @@ public partial class MainWindow : Window
             if (!HasServerSettings()) throw new InvalidOperationException("تنظیمات سرور کامل نیست.");
 
             await _api.PingAsync();
-            var response = await _api.SearchUsersAsync(q);
-            _userResults.Clear();
-            foreach (var user in response.Users) _userResults.Add(user);
-            if (_userResults.Count > 0) CustomerResultsBox.SelectedIndex = 0;
+            await LoadCustomersAsync(q);
 
             AssignmentFeedbackText.Text = _userResults.Count == 0
                 ? "مشتری مطابق جستجو پیدا نشد."
-                : $"{_userResults.Count} مشتری پیدا شد.";
+                : $"{_userResults.Count} مشتری پیدا شد؛ یک نفر را انتخاب کنید.";
             AssignmentFeedbackText.Foreground = _userResults.Count == 0 ? Brush("Warn") : Brush("Good");
         }
         catch (Exception ex)
@@ -844,19 +1050,67 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void AssignCard_Click(object sender, RoutedEventArgs e)
+    private void CustomerResultsBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var uid = AssignCardUidBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(uid))
+        if (_cardRegistrationStage == CardRegistrationStage.Idle ||
+            _cardRegistrationStage == CardRegistrationStage.WaitingForCard ||
+            _cardRegistrationStage == CardRegistrationStage.Completed)
         {
-            AssignmentFeedbackText.Text = "ابتدا کارت را با دکمه «خواندن کارت بدون برداشت» بخوانید.";
-            AssignmentFeedbackText.Foreground = Brush("Warn");
             return;
         }
 
         if (CustomerResultsBox.SelectedItem is not UserSummary user)
         {
-            AssignmentFeedbackText.Text = "ابتدا مشتری را جستجو و انتخاب کنید.";
+            _cardRegistrationStage = CardRegistrationStage.SelectingCustomer;
+            CustomerSelectionText.Text = "هنوز مشتری انتخاب نشده است.";
+            RegistrationStep2Badge.BorderBrush = Brush("Accent");
+            RegistrationStep2Text.Text = "انتخاب کنید";
+            RegistrationStep3Badge.BorderBrush = Brush("Line");
+            RegistrationStep3Text.Text = "منتظر انتخاب مشتری";
+            RegistrationConfirmPanel.IsEnabled = false;
+            RegistrationConfirmPanel.Opacity = 0.55;
+            ConfirmRegistrationButton.IsEnabled = false;
+            return;
+        }
+
+        _cardRegistrationStage = CardRegistrationStage.ReadyToConfirm;
+        CustomerSelectionText.Text = $"انتخاب شده: {user.DisplayLabel}";
+        RegistrationStep2Badge.BorderBrush = Brush("Good");
+        RegistrationStep2Text.Text = "مشتری انتخاب شد";
+        RegistrationStep3Badge.BorderBrush = Brush("Accent");
+        RegistrationStep3Text.Text = "آماده تأیید";
+        RegistrationConfirmPanel.IsEnabled = true;
+        RegistrationConfirmPanel.Opacity = 1.0;
+        ConfirmRegistrationButton.IsEnabled = true;
+        RegistrationSummaryText.Text = $"کارت {AssignCardUidBox.Text} برای «{user.Name}» ثبت خواهد شد. برای ثبت نهایی دکمه تأیید را بزنید.";
+        AssignmentFeedbackText.Text = "اطلاعات آماده ثبت است؛ مرحله نهایی را تأیید کنید.";
+        AssignmentFeedbackText.Foreground = Brush("Accent");
+    }
+
+    private async void AssignCard_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cardRegistrationStage != CardRegistrationStage.ReadyToConfirm)
+        {
+            AssignmentFeedbackText.Text = "مراحل ثبت کارت را به ترتیب کامل کنید.";
+            AssignmentFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        var uid = AssignCardUidBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(uid) || CustomerResultsBox.SelectedItem is not UserSummary user)
+        {
+            AssignmentFeedbackText.Text = "کارت یا مشتری انتخاب نشده است.";
+            AssignmentFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        var message = _registrationExistingOwner is not null && _registrationExistingOwner.Id != user.Id
+            ? $"این کارت اکنون متعلق به «{_registrationExistingOwner.Name}» است.\n\nمالک به «{user.Name}» تغییر کند؟"
+            : $"کارت {uid}\nبرای «{user.Name}» ثبت شود؟";
+
+        if (MessageBox.Show(message, "تأیید ثبت کارت", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        {
+            AssignmentFeedbackText.Text = "ثبت نهایی انجام نشد؛ می‌توانید مشتری را تغییر دهید یا دوباره تأیید کنید.";
             AssignmentFeedbackText.Foreground = Brush("Warn");
             return;
         }
@@ -867,34 +1121,37 @@ public partial class MainWindow : Window
             if (!HasServerSettings()) throw new InvalidOperationException("تنظیمات سرور کامل نیست.");
 
             await _api.PingAsync();
-            var lookup = await _api.GetCardAsync(uid);
-            var force = false;
-
-            if (lookup.Found && lookup.Card?.Owner is not null && lookup.Card.Owner.Id != user.Id)
-            {
-                var old = lookup.Card.Owner;
-                var answer = MessageBox.Show(
-                    $"این کارت اکنون متعلق به «{old.Name}» است.\n\nکارت از مالک قبلی جدا و به «{user.Name}» منتقل شود؟",
-                    "تغییر مالک کارت",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-
-                if (answer != MessageBoxResult.Yes)
-                {
-                    AssignmentFeedbackText.Text = "تغییر مالک لغو شد.";
-                    AssignmentFeedbackText.Foreground = Brush("Warn");
-                    return;
-                }
-                force = true;
-            }
-
+            var force = _registrationExistingOwner is not null && _registrationExistingOwner.Id != user.Id;
             var result = await _api.AssignCardAsync(uid, user.Id, force);
             if (!result.Success || result.Card is null) throw new InvalidOperationException("سرور ثبت کارت را تأیید نکرد.");
 
+            _cardRegistrationStage = CardRegistrationStage.Completed;
+            _registrationExistingOwner = result.Card.Owner;
+
+            RegistrationStep1Badge.BorderBrush = Brush("Good");
+            RegistrationStep2Badge.BorderBrush = Brush("Good");
+            RegistrationStep3Badge.BorderBrush = Brush("Good");
+            RegistrationStep1Text.Text = "انجام شد";
+            RegistrationStep2Text.Text = "انجام شد";
+            RegistrationStep3Text.Text = "ثبت شد";
+            RegistrationSummaryText.Text = $"کارت {result.Card.Uid} با موفقیت برای «{user.Name}» ثبت شد.";
             CardOwnerText.Text = $"مالک فعلی: {user.Name} — {user.Phone} — مانده {result.Card.Remaining}";
-            AssignmentFeedbackText.Text = $"کارت {result.Card.Uid} با موفقیت برای {user.Name} ثبت شد.";
+
+            ConfirmRegistrationButton.IsEnabled = false;
+            UnassignRegistrationButton.IsEnabled = true;
+            CancelRegistrationButton.IsEnabled = false;
+            StartRegistrationButton.IsEnabled = true;
+            StartRegistrationButton.Content = "ثبت کارت بعدی";
+
+            AssignmentFeedbackText.Text = $"ثبت موفق بود: {user.Name}";
             AssignmentFeedbackText.Foreground = Brush("Good");
             _log.Info($"Card assigned: UID={result.Card.Uid} USER={user.Id}");
+
+            try
+            {
+                if (_serial?.IsConnected == true) _serial.Send("USE");
+            }
+            catch { }
         }
         catch (Exception ex)
         {
@@ -907,14 +1164,14 @@ public partial class MainWindow : Window
     private async void UnassignCard_Click(object sender, RoutedEventArgs e)
     {
         var uid = AssignCardUidBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(uid))
+        if (string.IsNullOrWhiteSpace(uid) || _registrationExistingOwner is null)
         {
-            AssignmentFeedbackText.Text = "ابتدا کارت را بخوانید.";
+            AssignmentFeedbackText.Text = "این کارت مالک ثبت‌شده‌ای برای قطع اتصال ندارد.";
             AssignmentFeedbackText.Foreground = Brush("Warn");
             return;
         }
 
-        if (MessageBox.Show("اتصال این کارت به مشتری قطع شود؟ خود اعتبار فیزیکی کارت پاک نمی‌شود.",
+        if (MessageBox.Show($"اتصال کارت {uid} از «{_registrationExistingOwner.Name}» قطع شود؟\nاعتبار روی خود کارت پاک نمی‌شود.",
                 "قطع اتصال کارت", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
         {
             return;
@@ -928,7 +1185,9 @@ public partial class MainWindow : Window
             var result = await _api.UnassignCardAsync(uid);
             if (!result.Success) throw new InvalidOperationException("سرور قطع اتصال را تأیید نکرد.");
 
+            _registrationExistingOwner = null;
             CardOwnerText.Text = "مالک فعلی: بدون مالک";
+            UnassignRegistrationButton.IsEnabled = false;
             AssignmentFeedbackText.Text = "اتصال کارت به مشتری قطع شد؛ اعتبار روی خود کارت تغییری نکرد.";
             AssignmentFeedbackText.Foreground = Brush("Good");
             _log.Info($"Card unassigned: UID={uid}");
