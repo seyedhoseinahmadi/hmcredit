@@ -20,6 +20,8 @@ public partial class MainWindow : Window
     private SyncService _sync = null!;
     private AgentSettings _settings = new();
     private CancellationTokenSource _cts = new();
+    // Coalesce bursts of card events into a single pending immediate sync wake-up.
+    private readonly SemaphoreSlim _realtimeSyncSignal = new(0, 1);
     private readonly ObservableCollection<CardEvent> _events = [];
     private readonly ObservableCollection<ServerCommand> _commands = [];
 
@@ -72,7 +74,10 @@ public partial class MainWindow : Window
             await RefreshAllUiAsync();
 
             _log.Info("HiMate Credit ready");
+            _ = Task.Run(() => RealtimeSyncLoopAsync(_cts.Token));
             _ = BackgroundLoopAsync(_cts.Token);
+            // Upload any durable unsent events from a previous session immediately.
+            RequestRealtimeSync();
         }
         catch (Exception ex)
         {
@@ -97,8 +102,11 @@ public partial class MainWindow : Window
                     var online = await TryPingServerAsync(quiet: true, ct);
                     if (online)
                     {
-                        await _sync.SyncOnceAsync(ct);
-                        _lastSyncAt = DateTime.Now;
+                        var synced = await _sync.SyncOnceAsync(ct);
+                        if (synced > 0)
+                        {
+                            _lastSyncAt = DateTime.Now;
+                        }
                     }
                 }
 
@@ -124,6 +132,53 @@ public partial class MainWindow : Window
         }
     }
 
+    // Wait for new durable events without polling the server every time.
+    // This worker never runs inside the serial callback, so offline card reads
+    // are never blocked by network latency or an unavailable WordPress server.
+    private async Task RealtimeSyncLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await _realtimeSyncSignal.WaitAsync(ct);
+                if (!HasServerSettings()) continue;
+
+                var synced = await _sync.SyncOnceAsync(ct);
+                if (synced > 0)
+                {
+                    _lastSyncAt = DateTime.Now;
+                    await RefreshUiFromAnyThreadAsync();
+                }
+
+                // SyncService sends at most 100 events per request; drain large
+                // batches without waiting for the periodic recovery scan.
+                if (synced == 100) RequestRealtimeSync();
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Immediate event sync deferred: {ex.Message}");
+                // Failed items remain in SQLite; periodic background retry handles them.
+            }
+        }
+    }
+
+    private void RequestRealtimeSync()
+    {
+        try
+        {
+            _realtimeSyncSignal.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+            // Another wake-up is already pending; this event is in durable SQLite.
+        }
+    }
+
     private async void Serial_LineReceived(string line)
     {
         try
@@ -145,6 +200,10 @@ public partial class MainWindow : Window
                 _log.Error($"LOCAL EVENT CONFLICT: {cardEvent.EventKey}; device ACK withheld");
                 return;
             }
+
+            // Trigger server upload immediately *after* the SQLite transaction
+            // commits. Do not await the network or depend on a device ACK.
+            RequestRealtimeSync();
 
             _serial.Send($"EVENT_ACK|ID={cardEvent.DeviceEventId}");
             await _store.MarkDeviceAckedAsync(cardEvent);
@@ -482,6 +541,8 @@ public partial class MainWindow : Window
             }
 
             ConfigureApiFromSettings();
+            // Send any events accumulated before server setup completed.
+            RequestRealtimeSync();
 
             if (_serial.IsConnected && (!string.Equals(oldPort, _settings.ComPort, StringComparison.OrdinalIgnoreCase) || oldBaud != _settings.BaudRate))
             {
@@ -576,8 +637,11 @@ public partial class MainWindow : Window
                 return;
             }
 
-            await _sync.SyncOnceAsync();
-            _lastSyncAt = DateTime.Now;
+            var synced = await _sync.SyncOnceAsync();
+            if (synced > 0)
+            {
+                _lastSyncAt = DateTime.Now;
+            }
             await RefreshAllUiAsync();
         }
         catch (Exception ex)
