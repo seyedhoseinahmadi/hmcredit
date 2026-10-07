@@ -5,7 +5,7 @@ The Windows Setup includes the **unmodified vendor CP210x Universal Windows VCP 
 ## Build pipeline
 
 1. `scripts/stage-cp210x-driver.ps1` downloads `CP210x_Universal_Windows_Driver.zip` from Silicon Labs; when Silicon Labs blocks CI downloads it falls back to the same signed CP210x driver distributed by Espressif for ESP32 development boards.
-2. The build requires INF, CAT and SYS files, a matching standard CP2102 hardware ID `USB\\VID_10C4&PID_EA60`, and at least one valid digitally signed driver catalog.
+2. The build requires INF, CAT, SYS and the original Silicon Labs license file, a matching standard CP2102 hardware ID `USB\\VID_10C4&PID_EA60`, and at least one valid digitally signed driver catalog.
 3. The original files are staged into `artifacts/drivers/cp210x`; there is **no third-party driver binary committed to Git**.
 4. Inno Setup embeds the driver into the EXE. During installation, the files are extracted to a temporary directory and Windows `pnputil /add-driver <driver> /subdirs /install` is invoked with administrative privileges.
 5. Driver files are removed from the temporary directory when Setup completes. Windows may retain the driver in its driver store; uninstalling HiMate Credit does not forcibly remove a shared system driver.
@@ -27,3 +27,5 @@ Test on two Windows machines:
 GitHub Actions CI checks packaging, but cannot test device installation without a physical CP2102 connected to the runner.
 
 **Official Espressif mirror:** https://dl.espressif.com/dl/idf-installer/CP210x_Universal_Windows_Driver.zip
+
+The Espressif mirror ZIP is pinned by SHA-256: `414345BDA1B0149F5DAA567ABDFA71E6D1A4405B7E0302BBC0DC46319FA154AB`. Changes require an explicit review and script update.
