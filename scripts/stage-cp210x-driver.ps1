@@ -20,6 +20,7 @@ foreach ($url in $urls) {
         Write-Host "Downloading CP210x VCP driver from: $url"
         Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRedirection 5 -TimeoutSec 120
         $downloaded = $true
+        $downloadSource = $url
         Write-Host "Driver source: $url"
         break
     }
@@ -40,13 +41,23 @@ if (-not (Test-Path $archive) -or (Get-Item $archive).Length -lt 10000) {
 $sha = (Get-FileHash $archive -Algorithm SHA256).Hash
 Write-Host "CP210x driver archive SHA-256: $sha"
 
+# Pin the Espressif-hosted version to a previously validated archive.
+if ($downloadSource -like 'https://dl.espressif.com/*') {
+    $expectedSha = '414345BDA1B0149F5DAA567ABDFA71E6D1A4405B7E0302BBC0DC46319FA154AB'
+    if ($sha -ne $expectedSha) {
+        throw "Espressif CP210x driver archive checksum changed unexpectedly. Review the new package before publishing."
+    }
+}
+
 Expand-Archive -LiteralPath $archive -DestinationPath $extracted -Force
 
 $infFiles = @(Get-ChildItem $extracted -Filter '*.inf' -Recurse -File)
 $catFiles = @(Get-ChildItem $extracted -Filter '*.cat' -Recurse -File)
 $sysFiles = @(Get-ChildItem $extracted -Filter '*.sys' -Recurse -File)
 
-if ($infFiles.Count -eq 0 -or $catFiles.Count -eq 0 -or $sysFiles.Count -eq 0) {
+$licenseFiles = @(Get-ChildItem $extracted -Filter 'SLAB_License_Agreement_VCP_Windows.txt' -Recurse -File)
+
+if ($infFiles.Count -eq 0 -or $catFiles.Count -eq 0 -or $sysFiles.Count -eq 0 -or $licenseFiles.Count -eq 0) {
     throw 'Official driver archive is missing INF, CAT, or SYS driver files.'
 }
 
@@ -79,4 +90,4 @@ Copy-Item -Path (Join-Path $extracted '*') -Destination $driverRoot -Recurse -Fo
 
 $packagedInf = @(Get-ChildItem $driverRoot -Filter '*.inf' -Recurse -File)
 Write-Host "CP210x driver packaged: $($packagedInf.Count) INF file(s)."
-Write-Host "Vendor package version/date is determined from the official Silicon Labs archive."
+Write-Host "Vendor license document included unmodified with the driver."
