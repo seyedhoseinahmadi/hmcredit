@@ -186,7 +186,30 @@
                   <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="جستجو" Click="SearchCustomers_Click" />
                 </Grid>
 
-                <ComboBox x:Name="CustomerResultsBox" DisplayMemberPath="DisplayLabel" MinHeight="38" Margin="0,0,0,14" />
+                <ComboBox x:Name="CustomerResultsBox"
+                          DisplayMemberPath="DisplayLabel"
+                          MinHeight="38"
+                          Margin="0,0,0,14"
+                          Foreground="{StaticResource Text}"
+                          Background="{StaticResource Panel}">
+                  <ComboBox.ItemContainerStyle>
+                    <Style TargetType="ComboBoxItem">
+                      <Setter Property="Foreground" Value="{StaticResource Text}" />
+                      <Setter Property="Background" Value="{StaticResource Panel}" />
+                      <Setter Property="Padding" Value="10,8" />
+                      <Style.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                          <Setter Property="Background" Value="{StaticResource Line}" />
+                          <Setter Property="Foreground" Value="{StaticResource Text}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                          <Setter Property="Background" Value="{StaticResource Accent}" />
+                          <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                      </Style.Triggers>
+                    </Style>
+                  </ComboBox.ItemContainerStyle>
+                </ComboBox>
 
                 <WrapPanel>
                   <Button Style="{StaticResource PrimaryButton}" Content="ثبت کارت برای مشتری" Click="AssignCard_Click" Width="190" Margin="0,0,8,0" />
