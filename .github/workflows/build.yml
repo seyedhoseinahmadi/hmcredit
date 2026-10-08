@@ -3,7 +3,7 @@ name: Build HiMate Credit Installer
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, feature/server-topup-queue ]
 
 jobs:
   build-installer:
