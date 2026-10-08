@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<CardEvent> _events = [];
     private readonly ObservableCollection<ServerCommand> _commands = [];
     private readonly ObservableCollection<UserSummary> _userResults = [];
+    private readonly ObservableCollection<TopupRequest> _serverTopups = [];
 
     private string _serverVersion = "-";
     private DateTime? _lastSyncAt;
@@ -41,6 +42,11 @@ public partial class MainWindow : Window
     private CardRegistrationStage _cardRegistrationStage = CardRegistrationStage.Idle;
     private CardOwnerInfo? _registrationExistingOwner;
     private int _registrationAttempt;
+
+    // A server topup is claimed by this device before it is armed on firmware.
+    // Firmware 9.5.12 binds the operation to CID + expected UID and persists
+    // applied CIDs, so resending the same command after a crash is idempotent.
+    private TopupRequest? _activeServerTopup;
 
     public MainWindow()
     {
@@ -67,6 +73,7 @@ public partial class MainWindow : Window
             EventsGrid.ItemsSource = _events;
             CommandsGrid.ItemsSource = _commands;
             CustomerResultsBox.ItemsSource = _userResults;
+            ServerTopupsGrid.ItemsSource = _serverTopups;
             ResetCardRegistrationUi();
 
             LoadSettingsIntoUi();
@@ -205,6 +212,8 @@ public partial class MainWindow : Window
                 UpdateDeviceResponseUi(line);
             });
 
+            await HandleServerTopupDeviceLineAsync(line);
+
             if (!DeviceProtocolParser.TryParseCardEvent(line, out var cardEvent))
             {
                 return;
@@ -224,6 +233,11 @@ public partial class MainWindow : Window
             _serial.Send($"EVENT_ACK|ID={cardEvent.DeviceEventId}");
             await _store.MarkDeviceAckedAsync(cardEvent);
             _log.Info($"Event saved locally: ID={cardEvent.DeviceEventId} {cardEvent.Type} UID={cardEvent.Uid}");
+
+            if (cardEvent.Cid.HasValue && cardEvent.Type.Equals("ADD", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = ConfirmServerTopupFromEventAsync(cardEvent);
+            }
 
             if (cardEvent.Type.Equals("ADD", StringComparison.OrdinalIgnoreCase))
             {
@@ -706,8 +720,354 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task RefreshServerTopupsAsync(bool showFeedback = true)
+    {
+        try
+        {
+            ConfigureApiFromSettings();
+            if (!HasServerSettings())
+            {
+                if (showFeedback)
+                {
+                    ServerTopupFeedbackText.Text = "تنظیمات سرور کامل نیست.";
+                    ServerTopupFeedbackText.Foreground = Brush("Warn");
+                }
+                return;
+            }
+
+            await _api.PingAsync();
+            var response = await _api.GetPendingTopupsAsync();
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                var selectedId = (ServerTopupsGrid.SelectedItem as TopupRequest)?.TopupId;
+                _serverTopups.Clear();
+                foreach (var item in response.Topups) _serverTopups.Add(item);
+
+                if (selectedId.HasValue)
+                {
+                    ServerTopupsGrid.SelectedItem = _serverTopups.FirstOrDefault(x => x.TopupId == selectedId.Value);
+                }
+
+                if (showFeedback)
+                {
+                    ServerTopupFeedbackText.Text = _serverTopups.Count == 0
+                        ? "درخواست شارژ در انتظار وجود ندارد."
+                        : $"{_serverTopups.Count} درخواست در صف است.";
+                    ServerTopupFeedbackText.Foreground = Brush(_serverTopups.Count == 0 ? "Muted" : "Good");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            if (showFeedback)
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ServerTopupFeedbackText.Text = ex.Message;
+                    ServerTopupFeedbackText.Foreground = Brush("Bad");
+                });
+            }
+            _log.Warn($"Server topup refresh failed: {ex.Message}");
+        }
+    }
+
+    private async void RefreshServerTopups_Click(object sender, RoutedEventArgs e)
+        => await RefreshServerTopupsAsync();
+
+    private async void ApplyServerTopup_Click(object sender, RoutedEventArgs e)
+    {
+        if (_serial?.IsConnected != true)
+        {
+            ServerTopupFeedbackText.Text = "دستگاه متصل نیست.";
+            ServerTopupFeedbackText.Foreground = Brush("Bad");
+            return;
+        }
+
+        if (_cardRegistrationStage is CardRegistrationStage.WaitingForCard
+            or CardRegistrationStage.SelectingCustomer
+            or CardRegistrationStage.ReadyToConfirm)
+        {
+            ServerTopupFeedbackText.Text = "ابتدا فرایند ثبت کارت را تمام یا لغو کنید.";
+            ServerTopupFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        if (ServerTopupsGrid.SelectedItem is not TopupRequest selected)
+        {
+            ServerTopupFeedbackText.Text = "یک درخواست شارژ را انتخاب کنید.";
+            ServerTopupFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        if (!selected.CanApply || !selected.CommandId.HasValue || string.IsNullOrWhiteSpace(selected.Uid))
+        {
+            ServerTopupFeedbackText.Text = selected.TopupStatus == "WAITING_CARD"
+                ? "این مشتری هنوز کارت فعال ندارد."
+                : "این درخواست در حال حاضر قابل اعمال روی کارت نیست.";
+            ServerTopupFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
+        try
+        {
+            ConfigureApiFromSettings();
+            await _api.PingAsync();
+            var claimed = await _api.ClaimTopupAsync(selected.TopupId);
+            var topup = claimed.Topup ?? throw new InvalidOperationException("سرور اطلاعات درخواست Claim شده را برنگرداند.");
+
+            if (!topup.CommandId.HasValue || string.IsNullOrWhiteSpace(topup.Uid) || topup.Credits <= 0)
+            {
+                throw new InvalidOperationException("اطلاعات فرمان شارژ ناقص است.");
+            }
+
+            _activeServerTopup = topup;
+
+            // Cancel any old special mode first. This never changes card credit.
+            _serial.Send("USE");
+            _serial.Send($"CREDITCMD|CID={topup.CommandId.Value}|UID={topup.Uid}|AMOUNT={topup.Credits}");
+
+            ApplyServerTopupButton.IsEnabled = false;
+            CancelServerTopupWaitButton.IsEnabled = true;
+            ServerTopupsGrid.IsEnabled = false;
+
+            ServerTopupFeedbackText.Text =
+                $"درخواست #{topup.TopupId} برای «{topup.CustomerName}» رزرو شد. " +
+                $"کارت ثبت‌شده {topup.Uid} را روی دستگاه قرار دهید؛ فقط همین UID پذیرفته می‌شود.";
+            ServerTopupFeedbackText.Foreground = Brush("Accent");
+
+            _log.Info($"Server topup armed: TOPUP={topup.TopupId} CID={topup.CommandId} UID={topup.Uid} AMOUNT={topup.Credits}");
+            await RefreshServerTopupsAsync(false);
+        }
+        catch (Exception ex)
+        {
+            _activeServerTopup = null;
+            ApplyServerTopupButton.IsEnabled = true;
+            CancelServerTopupWaitButton.IsEnabled = false;
+            ServerTopupsGrid.IsEnabled = true;
+            ServerTopupFeedbackText.Text = ex.Message;
+            ServerTopupFeedbackText.Foreground = Brush("Bad");
+            _log.Error($"Server topup arm failed: {ex.Message}");
+        }
+    }
+
+    private void CancelServerTopupWait_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_serial?.IsConnected == true) _serial.Send("USE");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Could not cancel server topup device mode: {ex.Message}");
+        }
+
+        var id = _activeServerTopup?.TopupId;
+        _activeServerTopup = null;
+        ApplyServerTopupButton.IsEnabled = true;
+        CancelServerTopupWaitButton.IsEnabled = false;
+        ServerTopupsGrid.IsEnabled = true;
+        ServerTopupFeedbackText.Text = id.HasValue
+            ? $"انتظار کارت برای درخواست #{id.Value} متوقف شد. درخواست روی همین دستگاه Claim شده و با «اعمال» دوباره ادامه پیدا می‌کند."
+            : "انتظار کارت لغو شد.";
+        ServerTopupFeedbackText.Foreground = Brush("Muted");
+    }
+
+    private async Task HandleServerTopupDeviceLineAsync(string line)
+    {
+        if (!line.StartsWith("CREDITCMD_RESULT|", StringComparison.OrdinalIgnoreCase) &&
+            !line.StartsWith("LOCAL_CREDIT_RESULT|", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var fields = DeviceProtocolParser.ParseFields(line);
+        fields.TryGetValue("STATUS", out var status);
+        fields.TryGetValue("REASON", out var reason);
+        var hasCid = fields.TryGetValue("CID", out var cidRaw) && long.TryParse(cidRaw, out var cid) && cid > 0;
+
+        if (!hasCid) return;
+
+        if (line.StartsWith("CREDITCMD_RESULT|", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(status, "ARMED", StringComparison.OrdinalIgnoreCase))
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ServerTopupFeedbackText.Text = "دستگاه آماده است؛ کارت ثبت‌شده مشتری را روی دستگاه قرار دهید.";
+                    ServerTopupFeedbackText.Foreground = Brush("Accent");
+                });
+                return;
+            }
+
+            if (string.Equals(status, "REJECTED", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(reason, "UID_MISMATCH", StringComparison.OrdinalIgnoreCase))
+            {
+                var got = fields.TryGetValue("GOT", out var g) ? g : "?";
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ServerTopupFeedbackText.Text = $"کارت اشتباه است ({got}). درخواست شارژ نشده؛ کارت صحیح را قرار دهید.";
+                    ServerTopupFeedbackText.Foreground = Brush("Warn");
+                });
+                return;
+            }
+
+            if (string.Equals(status, "ALREADY_APPLIED", StringComparison.OrdinalIgnoreCase))
+            {
+                await RecoverAlreadyAppliedTopupAsync(cid, fields);
+                return;
+            }
+        }
+
+        if (line.StartsWith("LOCAL_CREDIT_RESULT|", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(status, "APPLIED", StringComparison.OrdinalIgnoreCase))
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ServerTopupFeedbackText.Text = "شارژ روی کارت انجام شد؛ در حال ثبت نهایی روی سرور...";
+                    ServerTopupFeedbackText.Foreground = Brush("Good");
+                });
+            }
+            else if (string.Equals(status, "REJECTED", StringComparison.OrdinalIgnoreCase))
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ApplyServerTopupButton.IsEnabled = true;
+                    ServerTopupsGrid.IsEnabled = true;
+                    ServerTopupFeedbackText.Text = $"شارژ انجام نشد: {reason ?? "خطای دستگاه"}. می‌توانید دوباره تلاش کنید.";
+                    ServerTopupFeedbackText.Foreground = Brush("Bad");
+                });
+            }
+        }
+    }
+
+    private async Task RecoverAlreadyAppliedTopupAsync(long commandId, IReadOnlyDictionary<string, string> fields)
+    {
+        try
+        {
+            var request = _activeServerTopup ?? _serverTopups.FirstOrDefault(x => x.CommandId == commandId);
+            if (request is null)
+            {
+                await RefreshServerTopupsAsync(false);
+                request = _serverTopups.FirstOrDefault(x => x.CommandId == commandId);
+            }
+
+            if (request is null)
+            {
+                _log.Warn($"Applied CID {commandId} reported by firmware but matching pending topup was not found.");
+                return;
+            }
+
+            static int ReadInt(IReadOnlyDictionary<string, string> f, string key)
+                => f.TryGetValue(key, out var raw) && int.TryParse(raw, out var n) ? n : 0;
+
+            var amount = ReadInt(fields, "AMOUNT");
+            var total = ReadInt(fields, "TOTAL");
+            var remaining = ReadInt(fields, "REMAINING");
+            var tx = ReadInt(fields, "TX");
+            var gen = ReadInt(fields, "GEN");
+            var seq = ReadInt(fields, "SEQ");
+
+            if (amount <= 0 || total <= 0 || tx <= 0 || gen <= 0 || seq <= 0)
+            {
+                throw new InvalidOperationException("Firmware applied CID را گزارش کرد اما اطلاعات بازیابی کامل نیست.");
+            }
+
+            ConfigureApiFromSettings();
+            await _api.PingAsync();
+            var recovered = await _api.RecoverTopupAsync(
+                request.TopupId, commandId, amount, total, remaining, tx, gen, seq);
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _activeServerTopup = null;
+                ApplyServerTopupButton.IsEnabled = true;
+                CancelServerTopupWaitButton.IsEnabled = false;
+                ServerTopupsGrid.IsEnabled = true;
+                ServerTopupFeedbackText.Text = recovered.AlreadyApplied
+                    ? $"درخواست #{request.TopupId} قبلاً ثبت نهایی شده بود."
+                    : $"درخواست #{request.TopupId} از حافظه امن دستگاه بازیابی و APPLIED شد.";
+                ServerTopupFeedbackText.Foreground = Brush("Good");
+            });
+
+            await RefreshServerTopupsAsync(false);
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                ApplyServerTopupButton.IsEnabled = true;
+                CancelServerTopupWaitButton.IsEnabled = false;
+                ServerTopupsGrid.IsEnabled = true;
+                ServerTopupFeedbackText.Text = $"کارت قبلاً شارژ شده؛ بازیابی سرور نیازمند بررسی است: {ex.Message}";
+                ServerTopupFeedbackText.Foreground = Brush("Warn");
+            });
+            _log.Error($"Topup recovery failed: {ex.Message}");
+        }
+    }
+
+    private async Task ConfirmServerTopupFromEventAsync(CardEvent cardEvent)
+    {
+        if (!cardEvent.Cid.HasValue) return;
+
+        try
+        {
+            // Make sure the CID-bearing ADD reaches Core now; SyncService serializes
+            // this with background/event-triggered syncs.
+            await _sync.SyncOnceAsync();
+
+            var request = _activeServerTopup ?? _serverTopups.FirstOrDefault(x => x.CommandId == cardEvent.Cid.Value);
+            if (request is null) return;
+
+            for (var i = 0; i < 4; i++)
+            {
+                var response = await _api.GetTopupAsync(request.TopupId);
+                if (string.Equals(response.Topup?.TopupStatus, "APPLIED", StringComparison.OrdinalIgnoreCase))
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        _activeServerTopup = null;
+                        ApplyServerTopupButton.IsEnabled = true;
+                        CancelServerTopupWaitButton.IsEnabled = false;
+                        ServerTopupsGrid.IsEnabled = true;
+                        ServerTopupFeedbackText.Text =
+                            $"درخواست #{request.TopupId} با موفقیت اعمال شد؛ مانده کارت: {cardEvent.Remaining}.";
+                        ServerTopupFeedbackText.Foreground = Brush("Good");
+                    });
+                    await RefreshServerTopupsAsync(false);
+                    return;
+                }
+
+                await Task.Delay(350);
+            }
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                ServerTopupFeedbackText.Text = "کارت شارژ شده و رویداد ذخیره است؛ تأیید سرور در تلاش بعدی Sync تکمیل می‌شود.";
+                ServerTopupFeedbackText.Foreground = Brush("Warn");
+            });
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                ServerTopupFeedbackText.Text = "کارت شارژ شده و رویداد محلی امن است؛ ارسال سرور بعداً Retry می‌شود.";
+                ServerTopupFeedbackText.Foreground = Brush("Warn");
+            });
+            _log.Warn($"Topup post-event confirmation deferred: {ex.Message}");
+        }
+    }
+
     private void StartTopup_Click(object sender, RoutedEventArgs e)
     {
+        if (_activeServerTopup is not null)
+        {
+            TopupFeedbackText.Text = "ابتدا درخواست شارژ سروری فعال را تمام یا انتظار آن را لغو کنید.";
+            TopupFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
         if (!_serial.IsConnected)
         {
             TopupFeedbackText.Text = "دستگاه متصل نیست. اتصال را از تنظیمات بررسی کنید.";
@@ -725,7 +1085,7 @@ public partial class MainWindow : Window
         try
         {
             _serial.Send($"CREDIT {amount}");
-            TopupFeedbackText.Text = $"آماده شارژ {amount} اعتبار؛ کارت را روی دستگاه قرار دهید.";
+            TopupFeedbackText.Text = $"آماده شارژ دستی {amount} اعتبار؛ کارت را روی دستگاه قرار دهید.";
             TopupFeedbackText.Foreground = Brush("Accent");
         }
         catch (Exception ex)
@@ -814,6 +1174,13 @@ public partial class MainWindow : Window
 
     private async void StartCardRegistration_Click(object sender, RoutedEventArgs e)
     {
+        if (_activeServerTopup is not null)
+        {
+            AssignmentFeedbackText.Text = "ابتدا درخواست شارژ سروری فعال را تمام یا انتظار آن را لغو کنید.";
+            AssignmentFeedbackText.Foreground = Brush("Warn");
+            return;
+        }
+
         if (_cardRegistrationStage == CardRegistrationStage.Completed)
         {
             ResetCardRegistrationUi();
@@ -1227,7 +1594,11 @@ public partial class MainWindow : Window
     private void ShowHome_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavHome, 0);
     private void ShowCard_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavCard, 1);
     private void ShowTransactions_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavTransactions, 2);
-    private void ShowTopup_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavTopup, 3);
+    private async void ShowTopup_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveNav(NavTopup, 3);
+        await RefreshServerTopupsAsync(false);
+    }
     private void ShowSync_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavSync, 4);
     private void ShowSettings_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavSettings, 5);
     private void ShowSupport_Click(object sender, RoutedEventArgs e) => SetActiveNav(NavSupport, 6);
