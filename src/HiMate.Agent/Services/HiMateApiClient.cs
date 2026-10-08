@@ -23,7 +23,7 @@ public sealed class HiMateApiClient
     public HiMateApiClient()
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HiMate-Credit/0.2.5");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HiMate-Credit/0.2.6");
     }
 
     public async Task<PingResponse> PingAsync(CancellationToken ct = default)
@@ -133,6 +133,74 @@ public sealed class HiMateApiClient
             throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
         }
         return JsonSerializer.Deserialize<CardAssignResponse>(body, _json) ?? throw new InvalidOperationException("Invalid card unassign response.");
+    }
+
+    public async Task<TopupsResponse> GetPendingTopupsAsync(CancellationToken ct = default)
+    {
+        using var req = CreateSignedRequest(HttpMethod.Get, "/wp-json/himate/v1/topups/pending", "");
+        using var response = await _http.SendAsync(req, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
+        }
+        return JsonSerializer.Deserialize<TopupsResponse>(body, _json) ?? throw new InvalidOperationException("Invalid topups response.");
+    }
+
+    public async Task<TopupResponse> GetTopupAsync(long topupId, CancellationToken ct = default)
+    {
+        using var req = CreateSignedRequest(HttpMethod.Get, $"/wp-json/himate/v1/topups/{topupId}", "");
+        using var response = await _http.SendAsync(req, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
+        }
+        return JsonSerializer.Deserialize<TopupResponse>(body, _json) ?? throw new InvalidOperationException("Invalid topup response.");
+    }
+
+    public async Task<TopupResponse> ClaimTopupAsync(long topupId, CancellationToken ct = default)
+    {
+        using var req = CreateSignedRequest(HttpMethod.Post, $"/wp-json/himate/v1/topups/{topupId}/claim", "{}");
+        using var response = await _http.SendAsync(req, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
+        }
+        return JsonSerializer.Deserialize<TopupResponse>(body, _json) ?? throw new InvalidOperationException("Invalid topup claim response.");
+    }
+
+    public async Task<TopupResponse> RecoverTopupAsync(
+        long topupId,
+        long commandId,
+        int amount,
+        int total,
+        int remaining,
+        int tx,
+        int gen,
+        int seq,
+        CancellationToken ct = default)
+    {
+        var raw = JsonSerializer.Serialize(new
+        {
+            command_id = commandId,
+            amount,
+            total,
+            remaining,
+            tx,
+            gen,
+            seq
+        }, _json);
+
+        using var req = CreateSignedRequest(HttpMethod.Post, $"/wp-json/himate/v1/topups/{topupId}/recover", raw);
+        using var response = await _http.SendAsync(req, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"HTTP {(int)response.StatusCode}: {body}");
+        }
+        return JsonSerializer.Deserialize<TopupResponse>(body, _json) ?? throw new InvalidOperationException("Invalid topup recovery response.");
     }
 
     public async Task MarkCommandStatusAsync(long commandId, string status, string? reason = null, CancellationToken ct = default)
