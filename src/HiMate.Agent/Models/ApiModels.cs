@@ -186,3 +186,105 @@ public sealed class CardAssignResponse
     public CardInfo? Card { get; set; }
 }
 
+public sealed class TopupRequest
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("topup_id")]
+    public long TopupId { get; set; }
+
+    [JsonPropertyName("command_id")]
+    public long? CommandId { get; set; }
+
+    [JsonPropertyName("user_id")]
+    public long UserId { get; set; }
+
+    [JsonPropertyName("customer_name")]
+    public string CustomerName { get; set; } = "";
+
+    [JsonPropertyName("phone")]
+    public string Phone { get; set; } = "";
+
+    [JsonPropertyName("credits")]
+    public int Credits { get; set; }
+
+    [JsonPropertyName("uid")]
+    public string Uid { get; set; } = "";
+
+    [JsonPropertyName("card_id")]
+    public long? CardId { get; set; }
+
+    [JsonPropertyName("topup_status")]
+    public string TopupStatus { get; set; } = "";
+
+    [JsonPropertyName("topup_status_label")]
+    public string TopupStatusLabel { get; set; } = "";
+
+    [JsonPropertyName("command_status")]
+    public string CommandStatus { get; set; } = "";
+
+    [JsonPropertyName("assigned_device_id")]
+    public long AssignedDeviceId { get; set; }
+
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = "";
+
+    [JsonPropertyName("sale_amount")]
+    public long SaleAmount { get; set; }
+
+    [JsonPropertyName("pay_amount")]
+    public long PayAmount { get; set; }
+
+    [JsonPropertyName("payment_ref")]
+    public string PaymentRef { get; set; } = "";
+
+    [JsonPropertyName("created_at")]
+    public string CreatedAt { get; set; } = "";
+
+    [JsonPropertyName("paid_at")]
+    public string? PaidAt { get; set; }
+
+    [JsonPropertyName("applied_at")]
+    public string? AppliedAt { get; set; }
+
+    [JsonPropertyName("can_apply")]
+    public bool CanApply { get; set; }
+
+    [JsonPropertyName("claimed_by_this_device")]
+    public bool ClaimedByThisDevice { get; set; }
+
+    [JsonIgnore]
+    public string DisplayStatus => ClaimedByThisDevice ? "در حال اعمال روی این دستگاه" : TopupStatusLabel;
+}
+
+public sealed class TopupsResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("topups")]
+    public List<TopupRequest> Topups { get; set; } = [];
+
+    [JsonPropertyName("server_time")]
+    public string ServerTime { get; set; } = "";
+}
+
+public sealed class TopupResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("topup")]
+    public TopupRequest? Topup { get; set; }
+
+    [JsonPropertyName("recovered")]
+    public bool Recovered { get; set; }
+
+    [JsonPropertyName("already_applied")]
+    public bool AlreadyApplied { get; set; }
+
+    [JsonPropertyName("server_event_id")]
+    public long? ServerEventId { get; set; }
+}
+

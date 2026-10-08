@@ -320,26 +320,57 @@
 
       <TabItem Header="Topup">
         <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}">
-          <StackPanel Margin="28,24,28,30" MaxWidth="760" HorizontalAlignment="Right">
+          <StackPanel Margin="28,24,28,30">
             <TextBlock Style="{StaticResource PageTitle}" Text="شارژ اعتبار" />
-            <TextBlock Style="{StaticResource MutedText}" Text="شارژ دستی کارت از طریق دستگاه محلی" Margin="0,0,0,18" />
+            <TextBlock Style="{StaticResource MutedText}" Text="درخواست‌های خریداری‌شده از سرور و شارژ دستی کارت" Margin="0,0,0,18" />
 
-            <Border Style="{StaticResource Card}">
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
               <StackPanel>
-                <TextBlock Style="{StaticResource SectionTitle}" Text="مبلغ شارژ" />
-                <TextBox x:Name="TopupAmountBox" Text="1" Width="220" HorizontalAlignment="Right" FlowDirection="LeftToRight" TextAlignment="Right" />
-                <TextBlock Text="پس از شروع، کارت موردنظر را روی دستگاه قرار دهید."
-                           Foreground="{StaticResource Muted}" Margin="0,10,0,16" />
-                <Button Style="{StaticResource PrimaryButton}" Content="شروع شارژ کارت" Click="StartTopup_Click" Width="220" HorizontalAlignment="Right" />
-                <TextBlock x:Name="TopupFeedbackText" Text="" Foreground="{StaticResource Accent}" Margin="0,12,0,0" TextWrapping="Wrap" />
+                <Grid Margin="0,0,0,12">
+                  <TextBlock Style="{StaticResource SectionTitle}" Text="درخواست‌های شارژ از سرور" />
+                  <Button HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}"
+                          Content="بروزرسانی درخواست‌ها" Click="RefreshServerTopups_Click" />
+                </Grid>
+
+                <TextBlock Text="درخواست را انتخاب کنید و «اعمال روی کارت» را بزنید. دستگاه فقط UID ثبت‌شده همان مشتری را قبول می‌کند."
+                           Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                <DataGrid x:Name="ServerTopupsGrid" Height="250" SelectionMode="Single" SelectionUnit="FullRow">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="#" Binding="{Binding TopupId}" Width="70" />
+                    <DataGridTextColumn Header="مشتری" Binding="{Binding CustomerName}" Width="*" />
+                    <DataGridTextColumn Header="موبایل" Binding="{Binding Phone}" Width="130" />
+                    <DataGridTextColumn Header="کردیت" Binding="{Binding Credits}" Width="80" />
+                    <DataGridTextColumn Header="UID کارت" Binding="{Binding Uid}" Width="170" />
+                    <DataGridTextColumn Header="وضعیت" Binding="{Binding DisplayStatus}" Width="180" />
+                  </DataGrid.Columns>
+                </DataGrid>
+
+                <WrapPanel Margin="0,12,0,0">
+                  <Button x:Name="ApplyServerTopupButton" Style="{StaticResource PrimaryButton}"
+                          Content="اعمال درخواست روی کارت" Click="ApplyServerTopup_Click" Width="200" Margin="0,0,8,0" />
+                  <Button x:Name="CancelServerTopupWaitButton" Style="{StaticResource SecondaryButton}"
+                          Content="لغو انتظار کارت" Click="CancelServerTopupWait_Click" Width="150" IsEnabled="False" />
+                </WrapPanel>
+
+                <TextBlock x:Name="ServerTopupFeedbackText" Text="" Foreground="{StaticResource Accent}"
+                           Margin="0,12,0,0" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+            <Border Style="{StaticResource Card}">
               <StackPanel>
-                <TextBlock Style="{StaticResource SectionTitle}" Text="شارژ از سرور" />
-                <TextBlock Text="اعمال خودکار دستور CREDIT سروری تا اضافه‌شدن تطبیق امن CID + UID در Firmware غیرفعال می‌ماند."
-                           Foreground="{StaticResource Warn}" TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource SectionTitle}" Text="شارژ دستی" />
+                <TextBlock Text="برای شارژ حضوری/دستی که به خرید سایت متصل نیست استفاده کنید."
+                           Foreground="{StaticResource Muted}" Margin="0,0,0,12" />
+                <TextBox x:Name="TopupAmountBox" Text="1" Width="220" HorizontalAlignment="Right"
+                         FlowDirection="LeftToRight" TextAlignment="Right" />
+                <TextBlock Text="پس از شروع، کارت موردنظر را روی دستگاه قرار دهید."
+                           Foreground="{StaticResource Muted}" Margin="0,10,0,16" />
+                <Button Style="{StaticResource PrimaryButton}" Content="شروع شارژ دستی کارت"
+                        Click="StartTopup_Click" Width="220" HorizontalAlignment="Right" />
+                <TextBlock x:Name="TopupFeedbackText" Text="" Foreground="{StaticResource Accent}"
+                           Margin="0,12,0,0" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
           </StackPanel>
@@ -520,7 +551,7 @@
             <Border Style="{StaticResource Card}">
               <StackPanel>
                 <TextBlock Text="نسخه" Foreground="{StaticResource Muted}" />
-                <TextBlock Text="0.2.5" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
+                <TextBlock Text="0.2.6" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
               </StackPanel>
             </Border>
           </UniformGrid>
@@ -533,7 +564,7 @@
     <Border Grid.Row="2" Background="{StaticResource Header}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
       <Grid Margin="14,0">
         <TextBlock x:Name="BottomDeviceText" Text="دستگاه متصل نیست" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right" />
-        <TextBlock Text="نسخه 0.2.5" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
+        <TextBlock Text="نسخه 0.2.6" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
       </Grid>
     </Border>
   </Grid>
