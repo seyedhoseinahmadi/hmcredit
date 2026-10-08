@@ -884,7 +884,8 @@ public partial class MainWindow : Window
         var fields = DeviceProtocolParser.ParseFields(line);
         fields.TryGetValue("STATUS", out var status);
         fields.TryGetValue("REASON", out var reason);
-        var hasCid = fields.TryGetValue("CID", out var cidRaw) && long.TryParse(cidRaw, out var cid) && cid > 0;
+        long cid = 0;
+        var hasCid = fields.TryGetValue("CID", out var cidRaw) && long.TryParse(cidRaw, out cid) && cid > 0;
 
         if (!hasCid) return;
 
