@@ -84,6 +84,21 @@ public sealed class EventStore
                     reader.GetInt32(reader.GetOrdinal("total")) == e.Total &&
                     reader.GetInt32(reader.GetOrdinal("remaining")) == e.Remaining;
 
+                // Firmware 9.5.12 can add CID metadata to a replayed event. If an
+                // older Agent stored the same logical event before seeing CID,
+                // enrich the durable local row instead of losing the command binding.
+                if (same && e.Cid.HasValue && reader.IsDBNull(reader.GetOrdinal("cid")))
+                {
+                    var localId = reader.GetInt64(reader.GetOrdinal("local_id"));
+                    await reader.DisposeAsync();
+                    var bind = db.CreateCommand();
+                    bind.Transaction = (SqliteTransaction)tx;
+                    bind.CommandText = "UPDATE events SET cid=$cid WHERE local_id=$id AND cid IS NULL";
+                    bind.Parameters.AddWithValue("$cid", e.Cid.Value);
+                    bind.Parameters.AddWithValue("$id", localId);
+                    await bind.ExecuteNonQueryAsync();
+                }
+
                 await tx.CommitAsync();
                 return same ? SaveEventResult.Duplicate : SaveEventResult.Conflict;
             }
