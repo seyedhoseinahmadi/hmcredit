@@ -377,7 +377,7 @@
                 <Button Style="{StaticResource PrimaryButton}" x:Name="ManualTopupButton" Content="شروع شارژ دستی کارت"
                         Click="StartTopup_Click" Width="220" HorizontalAlignment="Right" />
                 <Button Style="{StaticResource SecondaryButton}" Content="لغو انتظار شارژ دستی"
-                        Click="CancelManualTopup_Click" Width="220" HorizontalAlignment="Right" Margin="0,8,0,0" />
+                        Width="220" HorizontalAlignment="Right" Margin="0,8,0,0" />
                 <TextBlock x:Name="TopupFeedbackText" Text="" Foreground="{StaticResource Accent}"
                            Margin="0,12,0,0" TextWrapping="Wrap" />
               </StackPanel>
