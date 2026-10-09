@@ -1,0 +1,42 @@
+name: Verify HiMate Agent compatibility
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish self-contained Windows Agent
+        shell: pwsh
+        run: .\scripts\publish-win-x64.ps1
+      - name: Stage official signed CP210x driver
+        shell: pwsh
+        run: .\scripts\stage-cp210x-driver.ps1
+      - name: Build Windows setup EXE
+        shell: pwsh
+        env:
+          HIMATE_VERSION: v0.2.10
+        run: .\scripts\build-installer.ps1
+      - name: Upload Windows setup EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: HiMate-Credit-Setup-0.2.10
+          path: artifacts/installer/HiMate-Credit-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Agent build (not installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HiMate-Credit-Agent-0.2.10-win-x64
+          path: artifacts/win-x64/
+          if-no-files-found: error
+          retention-days: 14

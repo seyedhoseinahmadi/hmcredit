@@ -430,6 +430,15 @@ public partial class MainWindow : Window
         }
     }
 
+    // Payment-by-credit requires Core 2.6.0+ for safe server-side matching.
+    // Never block durable event uploads when an older Core is detected.
+    private static bool SupportsAutonomousCredit(string version)
+    {
+        var normal = (version ?? "").Trim().Split('-', '+')[0];
+        return Version.TryParse(normal, out var parsed) &&
+               parsed.CompareTo(new Version(2, 6, 0)) >= 0;
+    }
+
     private async Task<bool> TryPingServerAsync(bool quiet, CancellationToken ct = default)
     {
         if (!HasServerSettings())
@@ -447,12 +456,16 @@ public partial class MainWindow : Window
         {
             var ping = await _api.PingAsync(ct);
             _serverVersion = string.IsNullOrWhiteSpace(ping.Version) ? "-" : ping.Version;
-            ApplyServerState(true, $"Core {_serverVersion}");
+            ApplyServerState(true, SupportsAutonomousCredit(_serverVersion)
+                ? $"Core {_serverVersion}" : $"Core {_serverVersion} (نیازمند ارتقا)");
 
             if (!quiet)
             {
-                ServerTestFeedbackText.Text = $"سرور در دسترس است — HiMate Core {_serverVersion}";
-                ServerTestFeedbackText.Foreground = Brush("Good");
+                var compatible = SupportsAutonomousCredit(_serverVersion);
+                ServerTestFeedbackText.Text = compatible
+                    ? $"سرور در دسترس است — HiMate Core {_serverVersion}"
+                    : $"سرور در دسترس است، اما پرداخت کردیتی خودکار به Core 2.6.0 یا بالاتر نیاز دارد (نسخه فعلی: {_serverVersion}).";
+                ServerTestFeedbackText.Foreground = Brush(compatible ? "Good" : "Warn");
             }
 
             _log.Info($"Server ping OK: Core {_serverVersion}");
@@ -717,7 +730,8 @@ public partial class MainWindow : Window
                 _commands.Add(cmd);
             }
 
-            ApplyServerState(true, $"Core {_serverVersion}");
+            ApplyServerState(true, SupportsAutonomousCredit(_serverVersion)
+                ? $"Core {_serverVersion}" : $"Core {_serverVersion} (نیازمند ارتقا)");
             _log.Info($"Commands loaded: {_commands.Count}");
         }
         catch (Exception ex)
