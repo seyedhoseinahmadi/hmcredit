@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="HiMate Credit" Height="790" Width="1180" MinHeight="700" MinWidth="1040"
-        Loaded="OrderDebitController_Loaded" WindowStartupLocation="CenterScreen" FlowDirection="RightToLeft"
+        WindowStartupLocation="CenterScreen" FlowDirection="RightToLeft"
         Background="{StaticResource Bg}">
   <Grid Background="{StaticResource Bg}">
     <Grid.RowDefinitions>
@@ -322,30 +322,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource Bg}">
           <StackPanel Margin="28,24,28,30">
             <TextBlock Style="{StaticResource PageTitle}" Text="شارژ اعتبار" />
-            <TextBlock Style="{StaticResource MutedText}" Text="درخواست‌های خریداری‌شده از سرور و شارژ دستی کارت" Margin="0,0,0,18" />
-
-            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
-              <StackPanel>
-                <TextBlock Style="{StaticResource SectionTitle}" Text="پرداخت سفارش‌های سایت با کارت" />
-                <TextBlock Text="فرمان‌ها از سایت دریافت می‌شوند. هر فرمان شامل شماره سفارش، CID، UID و تعداد کردیت است. روی دستگاه هر بار فقط یک سفارش فعال می‌شود."
-                           Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
-                <DataGrid x:Name="OrderDebitsGrid" Height="210" SelectionMode="Single" SelectionUnit="FullRow">
-                  <DataGrid.Columns>
-                    <DataGridTextColumn Header="سفارش" Binding="{Binding OrderId}" Width="80" />
-                    <DataGridTextColumn Header="مشتری" Binding="{Binding CustomerName}" Width="*" />
-                    <DataGridTextColumn Header="پلاک" Binding="{Binding Plate}" Width="130" />
-                    <DataGridTextColumn Header="UID کارت" Binding="{Binding Uid}" Width="170" />
-                    <DataGridTextColumn Header="کردیت" Binding="{Binding Amount}" Width="75" />
-                    <DataGridTextColumn Header="CID" Binding="{Binding Cid}" Width="80" />
-                    <DataGridTextColumn Header="وضعیت" Binding="{Binding Status}" Width="105" />
-                  </DataGrid.Columns>
-                </DataGrid>
-                <TextBlock x:Name="OrderDebitCountdownText" Text="دستگاه منتظر فرمان پرداخت سایت است."
-                           Foreground="{StaticResource Muted}" Margin="0,12,0,0" />
-                <TextBlock x:Name="OrderDebitFeedbackText" Text="سفارش‌ها هر چند ثانیه بررسی می‌شوند؛ انتخاب آنها در ویندوز لازم نیست."
-                           Foreground="{StaticResource Accent}" TextWrapping="Wrap" Margin="0,8,0,0" />
-              </StackPanel>
-            </Border>
+            <TextBlock Style="{StaticResource MutedText}" Text="انتقال درخواست‌های مستند سایت به کارت؛ بدون شارژ مستقیم و بی‌علت" Margin="0,0,0,18" />
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,16">
               <StackPanel>
@@ -355,8 +332,10 @@
                           Content="بروزرسانی درخواست‌ها" Click="RefreshServerTopups_Click" />
                 </Grid>
 
-                <TextBlock Text="درخواست را انتخاب کنید و «اعمال روی کارت» را بزنید. دستگاه فقط UID ثبت‌شده همان مشتری را قبول می‌کند."
+                <TextBlock Text="نام، شماره موبایل یا شناسه مشتری را جستجو کنید. هر شارژ باید ابتدا با علت مالی در پنل سایت ثبت شده باشد."
                            Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <TextBox x:Name="TopupCustomerFilterBox" TextChanged="TopupCustomerFilter_Changed"
+                         Margin="0,0,0,12" MinHeight="34" FlowDirection="RightToLeft" />
 
                 <DataGrid x:Name="ServerTopupsGrid" Height="250" SelectionMode="Single" SelectionUnit="FullRow">
                   <DataGrid.Columns>
@@ -364,6 +343,7 @@
                     <DataGridTextColumn Header="مشتری" Binding="{Binding CustomerName}" Width="*" />
                     <DataGridTextColumn Header="موبایل" Binding="{Binding Phone}" Width="130" />
                     <DataGridTextColumn Header="کردیت" Binding="{Binding Credits}" Width="80" />
+                    <DataGridTextColumn Header="علت ثبت در سایت" Binding="{Binding Note}" Width="200" />
                     <DataGridTextColumn Header="UID کارت" Binding="{Binding Uid}" Width="170" />
                     <DataGridTextColumn Header="وضعیت" Binding="{Binding DisplayStatus}" Width="180" />
                   </DataGrid.Columns>
@@ -385,7 +365,7 @@
               </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource Card}">
+            <Border Style="{StaticResource Card}" Visibility="Collapsed">
               <StackPanel>
                 <TextBlock Style="{StaticResource SectionTitle}" Text="شارژ دستی" />
                 <TextBlock Text="برای شارژ حضوری/دستی که به خرید سایت متصل نیست استفاده کنید."
@@ -401,6 +381,10 @@
                 <TextBlock x:Name="TopupFeedbackText" Text="" Foreground="{StaticResource Accent}"
                            Margin="0,12,0,0" TextWrapping="Wrap" />
               </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+              <TextBlock Text="برای شارژ هدیه یا اصلاح اعتبار، ابتدا در سایت از منوی «کردیت کارواش» علت و مقدار را ثبت کنید. شارژ فیزیکی بدون سند از این نسخه ویندوز غیرفعال شده است."
+                         TextWrapping="Wrap" Foreground="{StaticResource Muted}" />
             </Border>
           </StackPanel>
         </ScrollViewer>
