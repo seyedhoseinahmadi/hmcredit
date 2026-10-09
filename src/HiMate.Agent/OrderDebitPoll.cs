@@ -13,7 +13,7 @@ public partial class MainWindow
             if (!_serial.IsConnected || !HasServerSettings()) return;
             var response = await _api.GetPendingOrderDebitsAsync();
             _siteOrders.Clear();
-            foreach (var item in response.Debits) _siteOrders.Add(item);
+            foreach (var item in response.Debits) { _siteOrders.Add(item); if (item.Status == "PENDING") _heldOrderCommands.Remove(item.Cid); }
             if (_armedOrder is not null)
             {
                 var current = await _api.GetOrderDebitAsync(_armedOrder.OrderId);
