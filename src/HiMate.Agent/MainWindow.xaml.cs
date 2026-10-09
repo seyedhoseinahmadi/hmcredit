@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using HiMate.Agent.Models;
 using HiMate.Agent.Protocol;
 using HiMate.Agent.Services;
@@ -47,10 +48,16 @@ public partial class MainWindow : Window
     // Firmware 9.5.12 binds the operation to CID + expected UID and persists
     // applied CIDs, so resending the same command after a crash is idempotent.
     private TopupRequest? _activeServerTopup;
+    // Display-only countdown. Firmware owns the real timeout; Windows never
+    // releases the claimed CID or sends USE simply because its clock elapsed.
+    private readonly DispatcherTimer _serverCreditCountdownTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private DateTimeOffset? _serverCreditArmDeadline;
 
     public MainWindow()
     {
         InitializeComponent();
+        _serverCreditCountdownTimer.Tick += (_, _) => UpdateServerCreditCountdown();
+        _serverCreditCountdownTimer.Start();
         Loaded += MainWindow_Loaded;
         Closing += (_, _) => ShutdownServices();
     }
@@ -822,6 +829,8 @@ public partial class MainWindow : Window
             }
 
             _activeServerTopup = topup;
+            _serverCreditArmDeadline = DateTimeOffset.UtcNow.AddMinutes(5);
+            UpdateServerCreditCountdown();
 
             // Cancel any old special mode first. This never changes card credit.
             _serial.Send("USE");
@@ -842,6 +851,8 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _activeServerTopup = null;
+            _serverCreditArmDeadline = null;
+            UpdateServerCreditCountdown();
             ApplyServerTopupButton.IsEnabled = true;
             CancelServerTopupWaitButton.IsEnabled = false;
             ServerTopupsGrid.IsEnabled = true;
@@ -864,6 +875,8 @@ public partial class MainWindow : Window
 
         var id = _activeServerTopup?.TopupId;
         _activeServerTopup = null;
+        _serverCreditArmDeadline = null;
+        UpdateServerCreditCountdown();
         ApplyServerTopupButton.IsEnabled = true;
         CancelServerTopupWaitButton.IsEnabled = false;
         ServerTopupsGrid.IsEnabled = true;
@@ -871,6 +884,36 @@ public partial class MainWindow : Window
             ? $"انتظار کارت برای درخواست #{id.Value} متوقف شد. درخواست روی همین دستگاه Claim شده و با «اعمال» دوباره ادامه پیدا می‌کند."
             : "انتظار کارت لغو شد.";
         ServerTopupFeedbackText.Foreground = Brush("Muted");
+    }
+
+    private void UpdateServerCreditCountdown()
+    {
+        if (!_serverCreditArmDeadline.HasValue || _activeServerTopup is null)
+        {
+            ServerTopupCountdownText.Text = "مهلت قرار دادن کارت: پس از شروع اعمال، ۵ دقیقه";
+            return;
+        }
+
+        var left = _serverCreditArmDeadline.Value - DateTimeOffset.UtcNow;
+        if (left <= TimeSpan.Zero)
+        {
+            // Do not send a command here: the firmware may be writing a card.
+            // Only a matching firmware EXPIRED response can end this session.
+            ServerTopupCountdownText.Text = "زمان انتظار به پایان رسیده؛ منتظر تأیید دستگاه...";
+            return;
+        }
+
+        ServerTopupCountdownText.Text = $"زمان باقی‌مانده برای گذاشتن کارت: {(int)left.TotalMinutes:00}:{left.Seconds:00}";
+    }
+
+    private void ClearServerCreditWaitUi()
+    {
+        _activeServerTopup = null;
+        _serverCreditArmDeadline = null;
+        ApplyServerTopupButton.IsEnabled = true;
+        CancelServerTopupWaitButton.IsEnabled = false;
+        ServerTopupsGrid.IsEnabled = true;
+        UpdateServerCreditCountdown();
     }
 
     private async Task HandleServerTopupDeviceLineAsync(string line)
@@ -891,11 +934,30 @@ public partial class MainWindow : Window
 
         if (line.StartsWith("CREDITCMD_RESULT|", StringComparison.OrdinalIgnoreCase))
         {
+            if (string.Equals(status, "EXPIRED", StringComparison.OrdinalIgnoreCase))
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (_activeServerTopup?.CommandId != cid) return;
+                    var topupId = _activeServerTopup.TopupId;
+                    ClearServerCreditWaitUi();
+                    ServerTopupFeedbackText.Text =
+                        $"۵ دقیقه انتظار کارت برای درخواست #{topupId} تمام شد. دستگاه به برداشت عادی برگشت. " +
+                        "خرید همچنان در انتظار اعمال است و با انتخاب همان درخواست می‌توانید دوباره شروع کنید.";
+                    ServerTopupFeedbackText.Foreground = Brush("Warn");
+                });
+                await RefreshServerTopupsAsync(false);
+                return;
+            }
+
             if (string.Equals(status, "ARMED", StringComparison.OrdinalIgnoreCase))
             {
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    ServerTopupFeedbackText.Text = "دستگاه آماده است؛ کارت ثبت‌شده مشتری را روی دستگاه قرار دهید.";
+                    if (_activeServerTopup?.CommandId != cid) return;
+                    _serverCreditArmDeadline = DateTimeOffset.UtcNow.AddMinutes(5);
+                    UpdateServerCreditCountdown();
+                    ServerTopupFeedbackText.Text = "دستگاه آماده است؛ کارت ثبت‌شده مشتری را ظرف ۵ دقیقه قرار دهید.";
                     ServerTopupFeedbackText.Foreground = Brush("Accent");
                 });
                 return;
@@ -982,10 +1044,7 @@ public partial class MainWindow : Window
 
             await Dispatcher.InvokeAsync(() =>
             {
-                _activeServerTopup = null;
-                ApplyServerTopupButton.IsEnabled = true;
-                CancelServerTopupWaitButton.IsEnabled = false;
-                ServerTopupsGrid.IsEnabled = true;
+                ClearServerCreditWaitUi();
                 ServerTopupFeedbackText.Text = recovered.AlreadyApplied
                     ? $"درخواست #{request.TopupId} قبلاً ثبت نهایی شده بود."
                     : $"درخواست #{request.TopupId} از حافظه امن دستگاه بازیابی و APPLIED شد.";
@@ -1028,10 +1087,7 @@ public partial class MainWindow : Window
                 {
                     await Dispatcher.InvokeAsync(() =>
                     {
-                        _activeServerTopup = null;
-                        ApplyServerTopupButton.IsEnabled = true;
-                        CancelServerTopupWaitButton.IsEnabled = false;
-                        ServerTopupsGrid.IsEnabled = true;
+                        ClearServerCreditWaitUi();
                         ServerTopupFeedbackText.Text =
                             $"درخواست #{request.TopupId} با موفقیت اعمال شد؛ مانده کارت: {cardEvent.Remaining}.";
                         ServerTopupFeedbackText.Foreground = Brush("Good");
@@ -1639,6 +1695,7 @@ public partial class MainWindow : Window
 
     private void ShutdownServices()
     {
+        try { _serverCreditCountdownTimer.Stop(); } catch { }
         try { _cts.Cancel(); } catch { }
         try { _serial?.Dispose(); } catch { }
         _cts.Dispose();
