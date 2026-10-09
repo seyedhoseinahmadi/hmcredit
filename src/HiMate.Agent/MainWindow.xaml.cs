@@ -903,7 +903,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        ServerTopupCountdownText.Text = $"زمان باقی‌مانده برای گذاشتن کارت: {Math.Ceiling(left.TotalMinutes):00}:{left.Seconds:00}";
+        ServerTopupCountdownText.Text = $"زمان باقی‌مانده برای گذاشتن کارت: {(int)left.TotalMinutes:00}:{left.Seconds:00}";
     }
 
     private void ClearServerCreditWaitUi()
