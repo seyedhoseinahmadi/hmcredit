@@ -239,6 +239,9 @@ public sealed class TopupRequest
     [JsonPropertyName("payment_ref")]
     public string PaymentRef { get; set; } = "";
 
+    [JsonPropertyName("note")]
+    public string Note { get; set; } = "";
+
     [JsonPropertyName("created_at")]
     public string CreatedAt { get; set; } = "";
 
