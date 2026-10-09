@@ -288,3 +288,43 @@ public sealed class TopupResponse
     public long? ServerEventId { get; set; }
 }
 
+
+public sealed class OrderDebitRequest
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+    [JsonPropertyName("cid")]
+    public long Cid { get; set; }
+    [JsonPropertyName("order_id")]
+    public long OrderId { get; set; }
+    [JsonPropertyName("uid")]
+    public string Uid { get; set; } = "";
+    [JsonPropertyName("amount")]
+    public int Amount { get; set; }
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "";
+    [JsonPropertyName("customer_name")]
+    public string CustomerName { get; set; } = "";
+    [JsonPropertyName("phone")]
+    public string Phone { get; set; } = "";
+    [JsonPropertyName("plate")]
+    public string Plate { get; set; } = "";
+    [JsonPropertyName("device_id")]
+    public long DeviceId { get; set; }
+    [JsonPropertyName("payment_status")]
+    public string PaymentStatus { get; set; } = "";
+}
+public sealed class OrderDebitsResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+    [JsonPropertyName("debits")]
+    public List<OrderDebitRequest> Debits { get; set; } = [];
+}
+public sealed class OrderDebitResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+    [JsonPropertyName("debit")]
+    public OrderDebitRequest? Debit { get; set; }
+}

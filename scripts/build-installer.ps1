@@ -54,7 +54,7 @@ if (-not $iscc) {
 
 Write-Host "Using Inno Setup compiler: $iscc"
 
-$version = if ($env:HIMATE_VERSION) { $env:HIMATE_VERSION.TrimStart('v') } else { "0.2.7" }
+$version = if ($env:HIMATE_VERSION) { $env:HIMATE_VERSION.TrimStart('v') } else { "0.2.8" }
 
 & $iscc "/DMyAppVersion=$version" $iss
 if ($LASTEXITCODE -ne 0) {
