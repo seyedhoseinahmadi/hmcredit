@@ -3,7 +3,7 @@ name: Build HiMate Credit Installer
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, feature/credit-reason-ledger-029 ]
 
 jobs:
   build-installer:
