@@ -326,6 +326,29 @@
 
             <Border Style="{StaticResource Card}" Margin="0,0,0,16">
               <StackPanel>
+                <TextBlock Style="{StaticResource SectionTitle}" Text="پرداخت سفارش‌های سایت با کارت" />
+                <TextBlock Text="فرمان‌ها از سایت دریافت می‌شوند. هر فرمان شامل شماره سفارش، CID، UID و تعداد کردیت است. روی دستگاه هر بار فقط یک سفارش فعال می‌شود."
+                           Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
+                <DataGrid x:Name="OrderDebitsGrid" Height="210" SelectionMode="Single" SelectionUnit="FullRow">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="سفارش" Binding="{Binding OrderId}" Width="80" />
+                    <DataGridTextColumn Header="مشتری" Binding="{Binding CustomerName}" Width="*" />
+                    <DataGridTextColumn Header="پلاک" Binding="{Binding Plate}" Width="130" />
+                    <DataGridTextColumn Header="UID کارت" Binding="{Binding Uid}" Width="170" />
+                    <DataGridTextColumn Header="کردیت" Binding="{Binding Amount}" Width="75" />
+                    <DataGridTextColumn Header="CID" Binding="{Binding Cid}" Width="80" />
+                    <DataGridTextColumn Header="وضعیت" Binding="{Binding Status}" Width="105" />
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock x:Name="OrderDebitCountdownText" Text="دستگاه منتظر فرمان پرداخت سایت است."
+                           Foreground="{StaticResource Muted}" Margin="0,12,0,0" />
+                <TextBlock x:Name="OrderDebitFeedbackText" Text="سفارش‌ها هر چند ثانیه بررسی می‌شوند؛ انتخاب آنها در ویندوز لازم نیست."
+                           Foreground="{StaticResource Accent}" TextWrapping="Wrap" Margin="0,8,0,0" />
+              </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+              <StackPanel>
                 <Grid Margin="0,0,0,12">
                   <TextBlock Style="{StaticResource SectionTitle}" Text="درخواست‌های شارژ از سرور" />
                   <Button HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}"
