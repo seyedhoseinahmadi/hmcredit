@@ -353,8 +353,12 @@
                           Content="لغو انتظار کارت" Click="CancelServerTopupWait_Click" Width="150" IsEnabled="False" />
                 </WrapPanel>
 
+                <TextBlock x:Name="ServerTopupCountdownText"
+                           Text="مهلت قرار دادن کارت: پس از شروع اعمال، ۵ دقیقه"
+                           Foreground="{StaticResource Muted}" Margin="0,12,0,0"
+                           TextWrapping="Wrap" />
                 <TextBlock x:Name="ServerTopupFeedbackText" Text="" Foreground="{StaticResource Accent}"
-                           Margin="0,12,0,0" TextWrapping="Wrap" />
+                           Margin="0,8,0,0" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
 
@@ -551,7 +555,7 @@
             <Border Style="{StaticResource Card}">
               <StackPanel>
                 <TextBlock Text="نسخه" Foreground="{StaticResource Muted}" />
-                <TextBlock Text="0.2.6" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
+                <TextBlock Text="0.2.7" FontSize="18" FontWeight="Bold" Margin="0,8,0,0" />
               </StackPanel>
             </Border>
           </UniformGrid>
@@ -564,7 +568,7 @@
     <Border Grid.Row="2" Background="{StaticResource Header}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
       <Grid Margin="14,0">
         <TextBlock x:Name="BottomDeviceText" Text="دستگاه متصل نیست" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Right" />
-        <TextBlock Text="نسخه 0.2.6" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
+        <TextBlock Text="نسخه 0.2.7" Foreground="{StaticResource Muted}" FontSize="11" HorizontalAlignment="Left" />
       </Grid>
     </Border>
   </Grid>
