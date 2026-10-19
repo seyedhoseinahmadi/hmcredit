@@ -2,7 +2,7 @@
 
 Windows WPF (.NET 8) bridge between ESP32 card reader and HiMate Core WordPress.
 
-**Agent:** 0.2.10 — **Core:** 2.6.0 or later for autonomous car-wash credit settlement.
+**Agent:** 0.2.11 — **Core:** 2.6.0 or later for autonomous car-wash credit settlement.
 
 ## Payment contract
 
@@ -33,11 +33,20 @@ POST /wp-json/himate/v1/topups/{id}/claim
 POST /wp-json/himate/v1/topups/{id}/recover
 ```
 
-The legacy `/orders/debits` and `/orders/{id}/debit/claim` APIs are **not called by Agent 0.2.10**. Core may retain legacy review routes for migration only. Commands with `device_id=0` are claimed by the first authorized Agent that confirms delivery; this is for remaining legitimate commands such as CREDIT, not new order DEBITs.
+The legacy `/orders/debits` and `/orders/{id}/debit/claim` APIs are **not called by Agent 0.2.11**. Core may retain legacy review routes for migration only. Commands with `device_id=0` are claimed by the first authorized Agent that confirms delivery; this is for remaining legitimate commands such as CREDIT, not new order DEBITs.
 
 ### Event identity
 
 Device events are deduplicated by `SHA256(normalized_UID|GEN|TX|SEQ)`. All `ISSUE`, `ADD`, and `DEBIT` events must preserve their physical generation, transaction and sequence counters. Do not generate synthetic event identifiers or attach `OID/CID` to a new autonomous DEBIT.
+
+## Windows Agent 0.2.11: serial freeze mitigation
+
+- SerialPort receive thread no longer blocks on synchronous WPF Dispatcher.Invoke.
+- USB debug logs are queued and displayed in bounded background-priority batches.
+- Auto-connect, initial GETDEBIT/EVENTS and manual COM connection execute off the WPF UI thread.
+- Support screen adds buttons to copy all visible logs or save them as a TXT file.
+- No changes to card payment, CREDITCMD, licensing, backend or event schema.
+- If USB plugging alone freezes the computer without any COM connection, inspect the CP210x driver, USB cable and ESP32 power.
 
 ## Setup / build
 
