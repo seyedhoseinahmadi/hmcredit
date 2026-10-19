@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource _cts = new();
     // Coalesce bursts of card events into a single pending immediate sync wake-up.
     private readonly SemaphoreSlim _realtimeSyncSignal = new(0, 1);
+    private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly ObservableCollection<CardEvent> _events = [];
     private readonly ObservableCollection<ServerCommand> _commands = [];
     private readonly ObservableCollection<UserSummary> _userResults = [];
@@ -93,7 +94,7 @@ public partial class MainWindow : Window
 
             if (_settings.AutoConnect)
             {
-                TryConnectSavedDevice(quiet: true);
+                await TryConnectSavedDeviceAsync(quiet: true);
             }
 
             if (HasServerSettings())
@@ -124,7 +125,7 @@ public partial class MainWindow : Window
             {
                 if (_settings.AutoConnect && _serial?.IsConnected != true)
                 {
-                    TryConnectSavedDevice(quiet: true);
+                    await TryConnectSavedDeviceAsync(quiet: true);
                 }
 
                 if (HasServerSettings())
@@ -365,8 +366,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private bool TryConnectSavedDevice(bool quiet)
+    private async Task<bool> TryConnectSavedDeviceAsync(bool quiet)
     {
+        await _connectGate.WaitAsync();
+        try
+        {
         if (_serial.IsConnected)
         {
             ApplyDeviceState(true, _serial.ConnectedPort);
@@ -411,9 +415,12 @@ public partial class MainWindow : Window
 
         try
         {
-            _serial.Connect(port, _settings.BaudRate);
-            _serial.Send("GETDEBIT");
-            _serial.Send("EVENTS");
+            await Task.Run(() =>
+            {
+                _serial.Connect(port, _settings.BaudRate);
+                _serial.Send("GETDEBIT");
+                _serial.Send("EVENTS");
+            });
 
             ApplyDeviceState(true, port);
             DeviceTestFeedbackText.Text = $"اتصال با {port} برقرار شد.";
@@ -437,6 +444,11 @@ public partial class MainWindow : Window
         var normal = (version ?? "").Trim().Split('-', '+')[0];
         return Version.TryParse(normal, out var parsed) &&
                parsed.CompareTo(new Version(2, 6, 0)) >= 0;
+        }
+        finally
+        {
+            _connectGate.Release();
+        }
     }
 
     private async Task<bool> TryPingServerAsync(bool quiet, CancellationToken ct = default)
@@ -605,12 +617,12 @@ public partial class MainWindow : Window
 
             if (_serial.IsConnected && (!string.Equals(oldPort, _settings.ComPort, StringComparison.OrdinalIgnoreCase) || oldBaud != _settings.BaudRate))
             {
-                _serial.Disconnect();
+                await Task.Run(() => _serial.Disconnect());
             }
 
             if (_settings.AutoConnect && !_serial.IsConnected)
             {
-                TryConnectSavedDevice(quiet: true);
+                await TryConnectSavedDeviceAsync(quiet: true);
             }
 
             SettingsFeedbackText.Text = "تنظیمات ذخیره شد.";
@@ -632,8 +644,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void TestDevice_Click(object sender, RoutedEventArgs e)
+    private async void TestDevice_Click(object sender, RoutedEventArgs e)
     {
+        await _connectGate.WaitAsync();
         try
         {
             if (!int.TryParse(BaudBox.Text.Trim(), out var baud) || baud <= 0)
@@ -651,12 +664,15 @@ public partial class MainWindow : Window
 
             if (_serial.IsConnected)
             {
-                _serial.Disconnect();
+                await Task.Run(() => _serial.Disconnect());
             }
 
-            _serial.Connect(port, baud);
-            _serial.Send("GETDEBIT");
-            _serial.Send("EVENTS");
+            await Task.Run(() =>
+            {
+                _serial.Connect(port, baud);
+                _serial.Send("GETDEBIT");
+                _serial.Send("EVENTS");
+            });
 
             ApplyDeviceState(true, port);
             DeviceTestFeedbackText.Text = $"اتصال با {port} موفق بود.";
@@ -668,6 +684,10 @@ public partial class MainWindow : Window
             DeviceTestFeedbackText.Text = ex.Message;
             DeviceTestFeedbackText.Foreground = Brush("Bad");
             _log.Warn($"Serial test failed: {ex.Message}");
+        }
+        finally
+        {
+            _connectGate.Release();
         }
     }
 
@@ -1641,6 +1661,31 @@ public partial class MainWindow : Window
     private void Balance_Click(object sender, RoutedEventArgs e) => SendDevice("BALANCE");
     private void Status_Click(object sender, RoutedEventArgs e) => SendDevice("STATUS");
     private void RefreshTransactions_Click(object sender, RoutedEventArgs e) => _ = RefreshTransactionsAsync();
+    private void CopyLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(string.Join(Environment.NewLine, _log.Items)); }
+        catch (Exception ex) { _log.Warn($"Copy logs failed: {ex.Message}"); }
+    }
+
+    private void ExportLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "Text logs (*.txt)|*.txt",
+                DefaultExt = ".txt",
+                FileName = $"himate-credit-{DateTime.Now:yyyyMMdd-HHmmss}.txt"
+            };
+            if (dialog.ShowDialog(this) == true)
+            {
+                System.IO.File.WriteAllLines(dialog.FileName, _log.Items);
+                _log.Info("Support log exported");
+            }
+        }
+        catch (Exception ex) { _log.Warn($"Export logs failed: {ex.Message}"); }
+    }
+
     private void RefreshPorts_Click(object sender, RoutedEventArgs e) => RefreshPorts();
 
     private void ComPortBox_DropDownOpened(object sender, EventArgs e) => RefreshPorts();
@@ -1711,7 +1756,7 @@ public partial class MainWindow : Window
     {
         try { _serverCreditCountdownTimer.Stop(); } catch { }
         try { _cts.Cancel(); } catch { }
-        try { _serial?.Dispose(); } catch { }
+        try { if (_serial is not null) _ = Task.Run(() => _serial.Dispose()); } catch { }
         _cts.Dispose();
     }
 }
