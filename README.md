@@ -2,7 +2,7 @@
 
 Windows WPF (.NET 8) bridge between ESP32 card reader and HiMate Core WordPress.
 
-**Agent:** 0.2.11 — **Core:** 2.6.0 or later for autonomous car-wash credit settlement.
+**Agent:** 0.2.12 — **Core:** 2.6.0 or later for autonomous car-wash credit settlement.
 
 ## Payment contract
 
@@ -33,13 +33,13 @@ POST /wp-json/himate/v1/topups/{id}/claim
 POST /wp-json/himate/v1/topups/{id}/recover
 ```
 
-The legacy `/orders/debits` and `/orders/{id}/debit/claim` APIs are **not called by Agent 0.2.11**. Core may retain legacy review routes for migration only. Commands with `device_id=0` are claimed by the first authorized Agent that confirms delivery; this is for remaining legitimate commands such as CREDIT, not new order DEBITs.
+The legacy `/orders/debits` and `/orders/{id}/debit/claim` APIs are **not called by Agent 0.2.12**. Core may retain legacy review routes for migration only. Commands with `device_id=0` are claimed by the first authorized Agent that confirms delivery; this is for remaining legitimate commands such as CREDIT, not new order DEBITs.
 
 ### Event identity
 
 Device events are deduplicated by `SHA256(normalized_UID|GEN|TX|SEQ)`. All `ISSUE`, `ADD`, and `DEBIT` events must preserve their physical generation, transaction and sequence counters. Do not generate synthetic event identifiers or attach `OID/CID` to a new autonomous DEBIT.
 
-## Windows Agent 0.2.11: serial freeze mitigation
+## Windows Agent 0.2.12: serial freeze mitigation
 
 - SerialPort receive thread no longer blocks on synchronous WPF Dispatcher.Invoke.
 - USB debug logs are queued and displayed in bounded background-priority batches.
@@ -68,3 +68,9 @@ See [Core 2.6 compatibility checks](docs/CORE_2.6_COMPAT.md) before production d
 ## License
 
 No public/open-source license has been selected yet.
+
+## Agent 0.2.12 — safe topup queue
+- Do not display FAILED or unknown-status topups in the Windows card-writing queue (Core may still return FAILED records on `/topups/pending`).
+- List PENDING_CARD and WAITING_CARD only; the latter is informational until a valid card is assigned.
+- Show a clear warning with failed request IDs; keep every historical server record/payment unchanged for explicit admin reconciliation.
+- This does **not** cancel, refund, retry, or reissue an existing topup. Confirm card state and payment before manual server action.
