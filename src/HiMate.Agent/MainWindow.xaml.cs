@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource _cts = new();
     // Coalesce bursts of card events into a single pending immediate sync wake-up.
     private readonly SemaphoreSlim _realtimeSyncSignal = new(0, 1);
+    private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly ObservableCollection<CardEvent> _events = [];
     private readonly ObservableCollection<ServerCommand> _commands = [];
     private readonly ObservableCollection<UserSummary> _userResults = [];
@@ -93,7 +94,7 @@ public partial class MainWindow : Window
 
             if (_settings.AutoConnect)
             {
-                TryConnectSavedDevice(quiet: true);
+                await TryConnectSavedDeviceAsync(quiet: true);
             }
 
             if (HasServerSettings())
@@ -124,7 +125,7 @@ public partial class MainWindow : Window
             {
                 if (_settings.AutoConnect && _serial?.IsConnected != true)
                 {
-                    TryConnectSavedDevice(quiet: true);
+                    await TryConnectSavedDeviceAsync(quiet: true);
                 }
 
                 if (HasServerSettings())
@@ -365,8 +366,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private bool TryConnectSavedDevice(bool quiet)
+    private async Task<bool> TryConnectSavedDeviceAsync(bool quiet)
     {
+        await _connectGate.WaitAsync();
+        try
+        {
         if (_serial.IsConnected)
         {
             ApplyDeviceState(true, _serial.ConnectedPort);
@@ -411,9 +415,12 @@ public partial class MainWindow : Window
 
         try
         {
-            _serial.Connect(port, _settings.BaudRate);
-            _serial.Send("GETDEBIT");
-            _serial.Send("EVENTS");
+            await Task.Run(() =>
+            {
+                _serial.Connect(port, _settings.BaudRate);
+                _serial.Send("GETDEBIT");
+                _serial.Send("EVENTS");
+            });
 
             ApplyDeviceState(true, port);
             DeviceTestFeedbackText.Text = $"اتصال با {port} برقرار شد.";
@@ -428,6 +435,20 @@ public partial class MainWindow : Window
             _log.Warn($"Serial auto-connect failed: {ex.Message}");
             return false;
         }
+        }
+        finally
+        {
+            _connectGate.Release();
+        }
+    }
+
+    // Payment-by-credit requires Core 2.6.0+ for safe server-side matching.
+    // Never block durable event uploads when an older Core is detected.
+    private static bool SupportsAutonomousCredit(string version)
+    {
+        var normal = (version ?? "").Trim().Split('-', '+')[0];
+        return Version.TryParse(normal, out var parsed) &&
+               parsed.CompareTo(new Version(2, 6, 0)) >= 0;
     }
 
     private async Task<bool> TryPingServerAsync(bool quiet, CancellationToken ct = default)
@@ -447,12 +468,16 @@ public partial class MainWindow : Window
         {
             var ping = await _api.PingAsync(ct);
             _serverVersion = string.IsNullOrWhiteSpace(ping.Version) ? "-" : ping.Version;
-            ApplyServerState(true, $"Core {_serverVersion}");
+            ApplyServerState(true, SupportsAutonomousCredit(_serverVersion)
+                ? $"Core {_serverVersion}" : $"Core {_serverVersion} (نیازمند ارتقا)");
 
             if (!quiet)
             {
-                ServerTestFeedbackText.Text = $"سرور در دسترس است — HiMate Core {_serverVersion}";
-                ServerTestFeedbackText.Foreground = Brush("Good");
+                var compatible = SupportsAutonomousCredit(_serverVersion);
+                ServerTestFeedbackText.Text = compatible
+                    ? $"سرور در دسترس است — HiMate Core {_serverVersion}"
+                    : $"سرور در دسترس است، اما پرداخت کردیتی خودکار به Core 2.6.0 یا بالاتر نیاز دارد (نسخه فعلی: {_serverVersion}).";
+                ServerTestFeedbackText.Foreground = Brush(compatible ? "Good" : "Warn");
             }
 
             _log.Info($"Server ping OK: Core {_serverVersion}");
@@ -592,12 +617,12 @@ public partial class MainWindow : Window
 
             if (_serial.IsConnected && (!string.Equals(oldPort, _settings.ComPort, StringComparison.OrdinalIgnoreCase) || oldBaud != _settings.BaudRate))
             {
-                _serial.Disconnect();
+                await Task.Run(() => _serial.Disconnect());
             }
 
             if (_settings.AutoConnect && !_serial.IsConnected)
             {
-                TryConnectSavedDevice(quiet: true);
+                await TryConnectSavedDeviceAsync(quiet: true);
             }
 
             SettingsFeedbackText.Text = "تنظیمات ذخیره شد.";
@@ -619,8 +644,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void TestDevice_Click(object sender, RoutedEventArgs e)
+    private async void TestDevice_Click(object sender, RoutedEventArgs e)
     {
+        await _connectGate.WaitAsync();
         try
         {
             if (!int.TryParse(BaudBox.Text.Trim(), out var baud) || baud <= 0)
@@ -638,12 +664,15 @@ public partial class MainWindow : Window
 
             if (_serial.IsConnected)
             {
-                _serial.Disconnect();
+                await Task.Run(() => _serial.Disconnect());
             }
 
-            _serial.Connect(port, baud);
-            _serial.Send("GETDEBIT");
-            _serial.Send("EVENTS");
+            await Task.Run(() =>
+            {
+                _serial.Connect(port, baud);
+                _serial.Send("GETDEBIT");
+                _serial.Send("EVENTS");
+            });
 
             ApplyDeviceState(true, port);
             DeviceTestFeedbackText.Text = $"اتصال با {port} موفق بود.";
@@ -655,6 +684,10 @@ public partial class MainWindow : Window
             DeviceTestFeedbackText.Text = ex.Message;
             DeviceTestFeedbackText.Foreground = Brush("Bad");
             _log.Warn($"Serial test failed: {ex.Message}");
+        }
+        finally
+        {
+            _connectGate.Release();
         }
     }
 
@@ -717,7 +750,8 @@ public partial class MainWindow : Window
                 _commands.Add(cmd);
             }
 
-            ApplyServerState(true, $"Core {_serverVersion}");
+            ApplyServerState(true, SupportsAutonomousCredit(_serverVersion)
+                ? $"Core {_serverVersion}" : $"Core {_serverVersion} (نیازمند ارتقا)");
             _log.Info($"Commands loaded: {_commands.Count}");
         }
         catch (Exception ex)
@@ -748,19 +782,36 @@ public partial class MainWindow : Window
             await Dispatcher.InvokeAsync(() =>
             {
                 var selectedId = (ServerTopupsGrid.SelectedItem as TopupRequest)?.TopupId;
+
+                // The Core /topups/pending endpoint also returns FAILED requests.
+                // They are historical/financial records, NOT executable topups.
+                // Keep them on the server for safe admin review, but never offer
+                // them in the Windows device-operation queue.
+                var actionableQueue = response.Topups.Where(x =>
+                    x.TopupStatus.Equals("PENDING_CARD", StringComparison.OrdinalIgnoreCase) ||
+                    x.TopupStatus.Equals("WAITING_CARD", StringComparison.OrdinalIgnoreCase)).ToList();
+                var failed = response.Topups.Where(x =>
+                    x.TopupStatus.Equals("FAILED", StringComparison.OrdinalIgnoreCase)).ToList();
+
                 _serverTopups.Clear();
-                foreach (var item in response.Topups) _serverTopups.Add(item);
+                foreach (var item in actionableQueue) _serverTopups.Add(item);
 
                 if (selectedId.HasValue)
                 {
                     ServerTopupsGrid.SelectedItem = _serverTopups.FirstOrDefault(x => x.TopupId == selectedId.Value);
                 }
 
+                TopupQueueNoticeText.Text = failed.Count == 0 ? "" :
+                    $"{failed.Count} درخواست ناموفق (از جمله #{string.Join("، #", failed.Take(4).Select(x => x.TopupId))}) " +
+                    "از صف عملیاتی پنهان شده‌اند. برای بررسی تراکنش یا لغو/تلاش مجددِ ایمن، به پنل سایت مراجعه کنید. " +
+                    "هیچ رکورد یا اعتباری حذف نشده است.";
+                TopupQueueNoticeText.Foreground = Brush("Warn");
+
                 if (showFeedback)
                 {
                     ServerTopupFeedbackText.Text = _serverTopups.Count == 0
-                        ? "درخواست شارژ در انتظار وجود ندارد."
-                        : $"{_serverTopups.Count} درخواست در صف است.";
+                        ? "درخواست قابل پردازش در صف نیست."
+                        : $"{_serverTopups.Count} درخواست در صف عملیاتی است.";
                     ServerTopupFeedbackText.Foreground = Brush(_serverTopups.Count == 0 ? "Muted" : "Good");
                 }
             });
@@ -1627,6 +1678,31 @@ public partial class MainWindow : Window
     private void Balance_Click(object sender, RoutedEventArgs e) => SendDevice("BALANCE");
     private void Status_Click(object sender, RoutedEventArgs e) => SendDevice("STATUS");
     private void RefreshTransactions_Click(object sender, RoutedEventArgs e) => _ = RefreshTransactionsAsync();
+    private void CopyLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(string.Join(Environment.NewLine, _log.Items)); }
+        catch (Exception ex) { _log.Warn($"Copy logs failed: {ex.Message}"); }
+    }
+
+    private void ExportLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "Text logs (*.txt)|*.txt",
+                DefaultExt = ".txt",
+                FileName = $"himate-credit-{DateTime.Now:yyyyMMdd-HHmmss}.txt"
+            };
+            if (dialog.ShowDialog(this) == true)
+            {
+                System.IO.File.WriteAllLines(dialog.FileName, _log.Items);
+                _log.Info("Support log exported");
+            }
+        }
+        catch (Exception ex) { _log.Warn($"Export logs failed: {ex.Message}"); }
+    }
+
     private void RefreshPorts_Click(object sender, RoutedEventArgs e) => RefreshPorts();
 
     private void ComPortBox_DropDownOpened(object sender, EventArgs e) => RefreshPorts();
@@ -1697,7 +1773,7 @@ public partial class MainWindow : Window
     {
         try { _serverCreditCountdownTimer.Stop(); } catch { }
         try { _cts.Cancel(); } catch { }
-        try { _serial?.Dispose(); } catch { }
+        try { if (_serial is not null) _ = Task.Run(() => _serial.Dispose()); } catch { }
         _cts.Dispose();
     }
 }

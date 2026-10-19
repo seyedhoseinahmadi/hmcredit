@@ -30,7 +30,7 @@ public sealed class SyncService
             try
             {
                 // Refresh server clock offset before authenticated requests.
-                // HiMate Core 2.2 rejects timestamps outside ±300 seconds.
+                // HiMate Core 2.6.0 rejects timestamps outside ±300 seconds.
                 await _api.PingAsync(ct);
                 response = await _api.UploadEventsAsync(pending, ct);
             }
@@ -41,7 +41,7 @@ public sealed class SyncService
                 return 0;
             }
 
-            // HiMate Core 2.2 returns one result per input event, in the same loop/order.
+            // HiMate Core 2.6.0 returns one result per input event, in the same loop/order.
             // Pair by index, not event_id, because a device event ID can be reset and reused later.
             var n = Math.Min(pending.Count, response.Accepted.Count);
             var synced = 0;

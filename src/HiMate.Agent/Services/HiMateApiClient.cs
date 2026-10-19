@@ -23,7 +23,7 @@ public sealed class HiMateApiClient
     public HiMateApiClient()
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HiMate-Credit/0.2.9");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HiMate-Credit/0.2.10");
     }
 
     public async Task<PingResponse> PingAsync(CancellationToken ct = default)
@@ -218,49 +218,8 @@ public sealed class HiMateApiClient
     }
 
 
-    // Orders are initiated on the website; this Agent polls the signed queue
-    // because USB-attached ESP32s cannot receive inbound Internet requests.
-    public async Task<OrderDebitsResponse> GetPendingOrderDebitsAsync(CancellationToken ct = default)
-    {
-        using var req = CreateSignedRequest(HttpMethod.Get, "/wp-json/himate/v1/orders/debits", "");
-        using var res = await _http.SendAsync(req, ct);
-        var body = await res.Content.ReadAsStringAsync(ct);
-        if (!res.IsSuccessStatusCode) throw new HttpRequestException($"HTTP {(int)res.StatusCode}: {body}");
-        return JsonSerializer.Deserialize<OrderDebitsResponse>(body, _json) ?? throw new InvalidOperationException("Invalid order debits response.");
-    }
-
-    public async Task<OrderDebitResponse> ClaimOrderDebitAsync(long orderId, CancellationToken ct = default)
-    {
-        using var req = CreateSignedRequest(HttpMethod.Post, $"/wp-json/himate/v1/orders/{orderId}/debit/claim", "{}");
-        using var res = await _http.SendAsync(req, ct);
-        var body = await res.Content.ReadAsStringAsync(ct);
-        if (!res.IsSuccessStatusCode) throw new HttpRequestException($"HTTP {(int)res.StatusCode}: {body}");
-        return JsonSerializer.Deserialize<OrderDebitResponse>(body, _json) ?? throw new InvalidOperationException("Invalid debit claim response.");
-    }
-
-    public async Task<OrderDebitResponse> GetOrderDebitAsync(long orderId, CancellationToken ct = default)
-    {
-        using var req = CreateSignedRequest(HttpMethod.Get, $"/wp-json/himate/v1/orders/{orderId}/debit", "");
-        using var res = await _http.SendAsync(req, ct);
-        var body = await res.Content.ReadAsStringAsync(ct);
-        if (!res.IsSuccessStatusCode) throw new HttpRequestException($"HTTP {(int)res.StatusCode}: {body}");
-        return JsonSerializer.Deserialize<OrderDebitResponse>(body, _json) ?? throw new InvalidOperationException("Invalid order debit response.");
-    }
-
-    public async Task MarkOrderDebitExpiredAsync(long orderId, long cid, CancellationToken ct = default)
-        => await PostOrderDebitStatusAsync(orderId, "expire", new { command_id = cid }, ct);
-
-    public async Task MarkOrderDebitReviewAsync(long orderId, long cid, string reason, CancellationToken ct = default)
-        => await PostOrderDebitStatusAsync(orderId, "review", new { command_id = cid, reason }, ct);
-
-    private async Task PostOrderDebitStatusAsync(long orderId, string operation, object data, CancellationToken ct)
-    {
-        var raw = JsonSerializer.Serialize(data, _json);
-        using var req = CreateSignedRequest(HttpMethod.Post, $"/wp-json/himate/v1/orders/{orderId}/debit/{operation}", raw);
-        using var res = await _http.SendAsync(req, ct);
-        var body = await res.Content.ReadAsStringAsync(ct);
-        if (!res.IsSuccessStatusCode) throw new HttpRequestException($"HTTP {(int)res.StatusCode}: {body}");
-    }
+    // Core 2.6.0 reconciles autonomous physical DEBIT events server-side.
+    // Never poll or claim a website-initiated order DEBIT from this Agent.
 
     private HttpRequestMessage CreateSignedRequest(HttpMethod method, string path, string rawBody)
     {
