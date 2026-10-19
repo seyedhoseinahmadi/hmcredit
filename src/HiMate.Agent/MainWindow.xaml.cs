@@ -435,6 +435,11 @@ public partial class MainWindow : Window
             _log.Warn($"Serial auto-connect failed: {ex.Message}");
             return false;
         }
+        }
+        finally
+        {
+            _connectGate.Release();
+        }
     }
 
     // Payment-by-credit requires Core 2.6.0+ for safe server-side matching.
@@ -444,11 +449,6 @@ public partial class MainWindow : Window
         var normal = (version ?? "").Trim().Split('-', '+')[0];
         return Version.TryParse(normal, out var parsed) &&
                parsed.CompareTo(new Version(2, 6, 0)) >= 0;
-        }
-        finally
-        {
-            _connectGate.Release();
-        }
     }
 
     private async Task<bool> TryPingServerAsync(bool quiet, CancellationToken ct = default)
