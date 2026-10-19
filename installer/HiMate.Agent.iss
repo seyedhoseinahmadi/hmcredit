@@ -2,7 +2,7 @@
 #define MyAppPublisher "HiMate"
 #define MyAppExeName "HiMate.Credit.exe"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.2.10"
+  #define MyAppVersion "0.2.11"
 #endif
 
 [Setup]
