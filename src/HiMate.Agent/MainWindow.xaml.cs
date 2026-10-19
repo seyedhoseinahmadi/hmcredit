@@ -782,19 +782,36 @@ public partial class MainWindow : Window
             await Dispatcher.InvokeAsync(() =>
             {
                 var selectedId = (ServerTopupsGrid.SelectedItem as TopupRequest)?.TopupId;
+
+                // The Core /topups/pending endpoint also returns FAILED requests.
+                // They are historical/financial records, NOT executable topups.
+                // Keep them on the server for safe admin review, but never offer
+                // them in the Windows device-operation queue.
+                var actionableQueue = response.Topups.Where(x =>
+                    x.TopupStatus.Equals("PENDING_CARD", StringComparison.OrdinalIgnoreCase) ||
+                    x.TopupStatus.Equals("WAITING_CARD", StringComparison.OrdinalIgnoreCase)).ToList();
+                var failed = response.Topups.Where(x =>
+                    x.TopupStatus.Equals("FAILED", StringComparison.OrdinalIgnoreCase)).ToList();
+
                 _serverTopups.Clear();
-                foreach (var item in response.Topups) _serverTopups.Add(item);
+                foreach (var item in actionableQueue) _serverTopups.Add(item);
 
                 if (selectedId.HasValue)
                 {
                     ServerTopupsGrid.SelectedItem = _serverTopups.FirstOrDefault(x => x.TopupId == selectedId.Value);
                 }
 
+                TopupQueueNoticeText.Text = failed.Count == 0 ? "" :
+                    $"{failed.Count} درخواست ناموفق (از جمله #{string.Join("، #", failed.Take(4).Select(x => x.TopupId))}) " +
+                    "از صف عملیاتی پنهان شده‌اند. برای بررسی تراکنش یا لغو/تلاش مجددِ ایمن، به پنل سایت مراجعه کنید. " +
+                    "هیچ رکورد یا اعتباری حذف نشده است.";
+                TopupQueueNoticeText.Foreground = Brush("Warn");
+
                 if (showFeedback)
                 {
                     ServerTopupFeedbackText.Text = _serverTopups.Count == 0
-                        ? "درخواست شارژ در انتظار وجود ندارد."
-                        : $"{_serverTopups.Count} درخواست در صف است.";
+                        ? "درخواست قابل پردازش در صف نیست."
+                        : $"{_serverTopups.Count} درخواست در صف عملیاتی است.";
                     ServerTopupFeedbackText.Foreground = Brush(_serverTopups.Count == 0 ? "Muted" : "Good");
                 }
             });
